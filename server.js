@@ -102,13 +102,23 @@ function createImageFromFile(file) {
   };
 }
 
+let persistQueue = Promise.resolve();
+
+function enqueuePersist(task) {
+  const run = persistQueue.then(task, task);
+  persistQueue = run.catch(() => {});
+  return run;
+}
+
 function persistImage(file) {
-  const items = loadBoard();
-  const image = createImageFromFile(file);
-  items.push(image);
-  saveBoard(items);
-  broadcast('pin-created', image);
-  return image;
+  return enqueuePersist(async () => {
+    const items = loadBoard();
+    const image = createImageFromFile(file);
+    items.push(image);
+    saveBoard(items);
+    broadcast('pin-created', image);
+    return image;
+  });
 }
 
 app.get('/api/images', (_req, res) => {
@@ -145,8 +155,9 @@ app.post('/api/images', (req, res) => {
     if (uploadError) return res.status(uploadError.status).json({ error: uploadError.message });
     if (!req.file) return res.status(400).json({ error: 'No image file received' });
 
-    const image = persistImage(req.file);
-    res.status(201).json(image);
+    persistImage(req.file)
+      .then((image) => res.status(201).json(image))
+      .catch(() => res.status(500).json({ error: 'Failed to persist image' }));
   });
 });
 
@@ -167,8 +178,12 @@ app.post('/api/images/script', (req, res) => {
       });
     }
 
-    const image = persistImage(req.file);
-    return res.status(201).json({ ok: true, data: image });
+    return persistImage(req.file)
+      .then((image) => res.status(201).json({ ok: true, data: image }))
+      .catch(() => res.status(500).json({
+        ok: false,
+        error: { code: 'PERSIST_FAILED', message: 'Failed to persist image' }
+      }));
   });
 });
 
