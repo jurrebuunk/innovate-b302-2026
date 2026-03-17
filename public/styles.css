@@ -53,7 +53,7 @@ button:hover { background: #2563eb; }
 
 #boardContainer {
   position: fixed;
-  inset: 48px 0 0;
+  inset: 48px 0 108px;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
@@ -63,6 +63,51 @@ button:hover { background: #2563eb; }
   background-size: 40px 40px;
 }
 #boardContainer.dragging { cursor: grabbing; }
+
+#timeline {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 101;
+  padding: 10px 12px 12px;
+  background: rgba(11, 13, 17, 0.95);
+  border-top: 1px solid #272a33;
+  backdrop-filter: blur(8px);
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: #c7cddc;
+}
+
+#timelineBlips {
+  height: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.blip {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #6b7280;
+  flex: 0 0 auto;
+}
+
+.blip.active {
+  background: #3b82f6;
+}
+
+#timelineSlider {
+  width: 100%;
+}
 
 @media (max-width: 720px) {
   #toolbar {
@@ -87,7 +132,7 @@ button:hover { background: #2563eb; }
   }
 
   #boardContainer {
-    inset: 88px 0 0;
+    inset: 88px 0 112px;
   }
 }
 

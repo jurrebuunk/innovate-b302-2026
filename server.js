@@ -38,7 +38,15 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      return cb(new Error('ONLY_IMAGES_ALLOWED'));
+    }
+    cb(null, true);
+  }
+});
 
 const CLUSTER_RADIUS = 900;
 
@@ -56,26 +64,35 @@ app.get('/api/images', (_req, res) => {
   res.json(loadBoard());
 });
 
-app.post('/api/images', upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No image file received' });
+app.post('/api/images', (req, res) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      if (err.message === 'ONLY_IMAGES_ALLOWED') {
+        return res.status(400).json({ error: 'Only image files are allowed' });
+      }
+      return res.status(400).json({ error: 'Invalid upload payload' });
+    }
 
-  const items = loadBoard();
-  const pos = randomPos();
+    if (!req.file) return res.status(400).json({ error: 'No image file received' });
 
-  const image = {
-    id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
-    url: `/uploads/${req.file.filename}`,
-    x: pos.x,
-    y: pos.y,
-    rotation: Math.round((Math.random() * 16 - 8) * 10) / 10,
-    scale: Math.round((0.75 + Math.random() * 0.7) * 100) / 100,
-    createdAt: new Date().toISOString(),
-    originalName: req.file.originalname
-  };
+    const items = loadBoard();
+    const pos = randomPos();
 
-  items.push(image);
-  saveBoard(items);
-  res.status(201).json(image);
+    const image = {
+      id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+      url: `/uploads/${req.file.filename}`,
+      x: pos.x,
+      y: pos.y,
+      rotation: Math.round((Math.random() * 16 - 8) * 10) / 10,
+      scale: Math.round((0.75 + Math.random() * 0.7) * 100) / 100,
+      createdAt: new Date().toISOString(),
+      originalName: req.file.originalname
+    };
+
+    items.push(image);
+    saveBoard(items);
+    res.status(201).json(image);
+  });
 });
 
 app.use((_req, res) => {

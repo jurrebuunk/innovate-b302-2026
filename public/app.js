@@ -2,13 +2,19 @@ const board = document.getElementById('board');
 const boardContainer = document.getElementById('boardContainer');
 const uploadForm = document.getElementById('uploadForm');
 const imageInput = document.getElementById('imageInput');
+const timelineSlider = document.getElementById('timelineSlider');
+const timelineBlips = document.getElementById('timelineBlips');
+const timelineLabel = document.getElementById('timelineLabel');
+
+const GRID_SIZE = 40;
+const historyUtils = window.PinboardHistory || {};
 
 const state = {
   scale: 1,
   minScale: 0.2,
   maxScale: 4,
   x: window.innerWidth / 2,
-  y: window.innerHeight / 2,
+  y: (window.innerHeight - 108) / 2,
   dragging: false,
   dragStartX: 0,
   dragStartY: 0,
@@ -16,11 +22,20 @@ const state = {
   pinchStartDistance: 0,
   pinchStartScale: 1,
   pinchCenter: { x: 0, y: 0 },
-  pinchWorldStart: { x: 0, y: 0 }
+  pinchWorldStart: { x: 0, y: 0 },
+  allPins: [],
+  visibleCount: 0
 };
+
+function syncBackgroundTransform() {
+  boardContainer.style.backgroundPosition = `${state.x}px ${state.y}px`;
+  const scaledGrid = Math.max(4, GRID_SIZE * state.scale);
+  boardContainer.style.backgroundSize = `${scaledGrid}px ${scaledGrid}px`;
+}
 
 function applyTransform() {
   board.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+  syncBackgroundTransform();
 }
 
 function hashString(str = '') {
@@ -39,7 +54,7 @@ function fallbackVariation(item) {
   return { rotation, scale };
 }
 
-function addPin(item) {
+function createPinNode(item) {
   const pin = document.createElement('div');
   pin.className = 'pin';
   pin.style.left = `${item.x}px`;
@@ -56,13 +71,46 @@ function addPin(item) {
   img.loading = 'lazy';
 
   pin.appendChild(img);
-  board.appendChild(pin);
+  return pin;
+}
+
+function renderPins() {
+  board.textContent = '';
+  const visible = state.allPins.slice(0, state.visibleCount);
+  visible.forEach((item) => board.appendChild(createPinNode(item)));
+}
+
+function renderTimeline() {
+  if (!timelineSlider || !timelineBlips || !timelineLabel) return;
+
+  const total = state.allPins.length;
+  timelineSlider.max = String(total);
+  timelineSlider.value = String(Math.min(state.visibleCount, total));
+
+  timelineBlips.textContent = '';
+  for (let i = 0; i < total; i++) {
+    const blip = document.createElement('span');
+    blip.className = `blip${i < state.visibleCount ? ' active' : ''}`;
+    timelineBlips.appendChild(blip);
+  }
+
+  timelineLabel.textContent = state.visibleCount === total
+    ? 'Latest'
+    : `${state.visibleCount}/${total} pinned`;
+}
+
+function setVisibleCount(nextCount) {
+  const clamped = Math.max(0, Math.min(state.allPins.length, nextCount));
+  state.visibleCount = clamped;
+  renderPins();
+  renderTimeline();
 }
 
 async function loadPins() {
   const res = await fetch('/api/images');
   const items = await res.json();
-  items.forEach(addPin);
+  state.allPins = [...items];
+  setVisibleCount(state.allPins.length);
 }
 
 function zoomAt(clientX, clientY, nextScale) {
@@ -167,6 +215,10 @@ boardContainer.addEventListener('wheel', (e) => {
   zoomAt(e.clientX, e.clientY, nextScale);
 }, { passive: false });
 
+timelineSlider.addEventListener('input', () => {
+  setVisibleCount(Number(timelineSlider.value));
+});
+
 uploadForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const file = imageInput.files[0];
@@ -186,8 +238,14 @@ uploadForm.addEventListener('submit', async (e) => {
   }
 
   const item = await res.json();
-  addPin(item);
+  const wasAtLatest = state.visibleCount === state.allPins.length;
+  state.allPins.push(item);
+  setVisibleCount(wasAtLatest ? state.allPins.length : state.visibleCount);
   uploadForm.reset();
+});
+
+window.addEventListener('resize', () => {
+  applyTransform();
 });
 
 applyTransform();

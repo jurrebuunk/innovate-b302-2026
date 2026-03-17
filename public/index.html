@@ -19,6 +19,16 @@
     <div id="board"></div>
   </main>
 
+  <section id="timeline" aria-label="Pin timeline">
+    <div class="timeline-header">
+      <span>Timeline</span>
+      <span id="timelineLabel">Latest</span>
+    </div>
+    <div id="timelineBlips" aria-hidden="true"></div>
+    <input id="timelineSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Timeline selector" />
+  </section>
+
+  <script src="/history.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
