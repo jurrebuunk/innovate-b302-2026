@@ -10,3 +10,10 @@
 - 2026-03-17 12:13 CET: Committed to `feat/issues-1-2-background-timeline` and pushed branch to origin.
 - 2026-03-17 12:14 CET: Opened PR #3 against `master` with issue-closing references.
 - 2026-03-17 12:15 CET: Commented on issues #1 and #2 with PR link and implementation/testing summary.
+
+- 2026-03-17 14:08 CET: Received approved implementation plan for single-image mode + realtime updates + script-friendly upload API.
+- 2026-03-17 14:09 CET: Updated PLAN.md with concrete execution steps before coding.
+- 2026-03-17 14:14 CET: Created branch feat/single-image-mode-realtime-updates from origin/master and began feature implementation.
+- 2026-03-17 14:21 CET: Implemented single-image mode UI/toggle + shared cutoff behavior + client SSE realtime ingestion in public app.
+- 2026-03-17 14:25 CET: Added backend SSE endpoint (/api/stream), script-friendly upload endpoint (/api/images/script), and shared upload persistence/broadcast path.
+- 2026-03-17 14:28 CET: Extended tests for cutoff selection utility and API/SSE behavior.

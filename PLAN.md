@@ -1,13 +1,14 @@
 # PLAN
 
 ## Goal
-Handle GitHub issues #1 and #2 end-to-end for `jurrebuunk/innovate-b302-2026`.
+Implement single-image mode + realtime timeline updates + script-friendly upload API for `jurrebuunk/innovate-b302-2026`.
 
 ## Steps
-1. Inspect current codebase and issue requirements. ✅
-2. Implement issue #1: sync board background movement with drag/zoom transforms. ✅
-3. Implement issue #2: add timeline UI + history scrubbing based on pin events. ✅
-4. Add/adjust tests for new timeline/background behavior and run test suite. ✅
-5. Validate app behavior quickly, update docs if needed. ✅
-6. Commit changes on feature branch, push branch, open PR. ✅
-7. Comment on issues #1 and #2 with PR link + concise summary. ✅
+1. Create feature branch from latest `origin/master` and baseline-check existing behavior. ✅
+2. Add topbar icon-only single-image mode toggle and mode-specific rendering while keeping topbar + timeline visible. ✅
+3. Ensure timeline cutoff drives both modes (board history and single latest-at-cutoff image). ✅
+4. Add SSE realtime feed and wire client updates so new uploads appear instantly in both modes. ✅
+5. Add script-friendly multipart upload endpoint with stable response + validation. ✅
+6. Apply UX/perf polish for timeline/mode switching smoothness. ✅
+7. Add/extend tests for cutoff logic and API realtime behavior; run full test suite. ✅ (`npm test`: 7 passed)
+8. Commit logical changes, push branch, open PR, comment on issue #4 with PR link + summary. ⏳
