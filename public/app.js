@@ -250,13 +250,3 @@ window.addEventListener('resize', () => {
 
 applyTransform();
 loadPins();
-.length : state.visibleCount);
-  uploadForm.reset();
-});
-
-window.addEventListener('resize', () => {
-  applyTransform();
-});
-
-applyTransform();
-loadPins();
