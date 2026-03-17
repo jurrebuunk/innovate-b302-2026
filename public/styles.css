@@ -1,0 +1,133 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background: #0f1115;
+  color: #fff;
+}
+
+#toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(11, 13, 17, 0.92);
+  border-bottom: 1px solid #272a33;
+  backdrop-filter: blur(8px);
+}
+
+#toolbar h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+#uploadForm {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+#imageInput {
+  max-width: 44vw;
+}
+
+button {
+  background: #3b82f6;
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:hover { background: #2563eb; }
+
+#boardContainer {
+  position: fixed;
+  inset: 48px 0 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+#boardContainer.dragging { cursor: grabbing; }
+
+@media (max-width: 720px) {
+  #toolbar {
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  #toolbar h1 {
+    width: 100%;
+    font-size: 13px;
+  }
+
+  #uploadForm {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  #imageInput {
+    max-width: 68vw;
+    font-size: 12px;
+  }
+
+  #boardContainer {
+    inset: 88px 0 0;
+  }
+}
+
+#board {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.pin {
+  position: absolute;
+  width: clamp(120px, 28vw, 220px);
+  border-radius: 10px;
+  overflow: visible;
+  box-shadow: 0 10px 20px rgba(0,0,0,.35);
+  border: 2px solid rgba(255,255,255,.2);
+  background: #1e212b;
+  transform-origin: center top;
+}
+
+.pin::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, #ff8c8c, #d02f2f 65%, #8f1c1c);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.35);
+  z-index: 5;
+}
+
+.pin img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
