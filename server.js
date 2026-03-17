@@ -63,13 +63,20 @@ function randomPos() {
 const streamClients = new Set();
 
 function sendSse(res, event, data) {
-  res.write(`event: ${event}\n`);
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
+  if (!res || res.writableEnded || res.destroyed) return false;
+  try {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function broadcast(event, data) {
   for (const client of streamClients) {
-    sendSse(client, event, data);
+    const ok = sendSse(client, event, data);
+    if (!ok) streamClients.delete(client);
   }
 }
 
@@ -120,7 +127,10 @@ app.get('/api/stream', (req, res) => {
   streamClients.add(res);
 
   const heartbeat = setInterval(() => {
-    res.write(': keepalive\n\n');
+    if (!sendSse(res, 'keepalive', { ok: true })) {
+      clearInterval(heartbeat);
+      streamClients.delete(res);
+    }
   }, 30000);
 
   req.on('close', () => {
