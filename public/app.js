@@ -322,7 +322,14 @@ window.addEventListener('resize', () => {
   applyTransform();
 });
 
-applyTransform();
-applyModeUi();
-loadPins();
-connectRealtime();
+async function initialize() {
+  applyTransform();
+  applyModeUi();
+  try {
+    await loadPins();
+  } finally {
+    connectRealtime();
+  }
+}
+
+initialize();
