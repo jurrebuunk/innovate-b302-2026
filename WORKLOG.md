@@ -17,3 +17,8 @@
 - 2026-03-17 14:21 CET: Implemented single-image mode UI/toggle + shared cutoff behavior + client SSE realtime ingestion in public app.
 - 2026-03-17 14:25 CET: Added backend SSE endpoint (/api/stream), script-friendly upload endpoint (/api/images/script), and shared upload persistence/broadcast path.
 - 2026-03-17 14:28 CET: Extended tests for cutoff selection utility and API/SSE behavior.
+- 2026-03-18 00:56 CET: Reproduced urgent PR #6 single-image layout bug via Playwright; observed split layout where #singleEmpty remained visible despite hidden attribute.
+- 2026-03-18 00:58 CET: Diagnosed CSS hidden-state override issue (ID display rules overriding hidden behavior).
+- 2026-03-18 01:00 CET: Applied minimal CSS fix in public/styles.css: global `[hidden] { display: none !important; }` to enforce hidden state across single-view elements.
+- 2026-03-18 01:02 CET: Re-validated in Playwright: single-image fills full content area between bars, no right-side empty panel/split behavior.
+- 2026-03-18 01:03 CET: Ran `npm test` (7/7 passing), committed, pushed branch, and posted concise PR #6 update comment.
