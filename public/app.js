@@ -30,7 +30,11 @@ const state = {
   allPins: [],
   visibleCount: 0,
   mode: 'board',
-  knownPinIds: new Set()
+  knownPinIds: new Set(),
+  sliderDragging: false,
+  timelineBlipNodes: [],
+  timelineRenderScheduled: false,
+  pendingVisibleCount: null
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -120,21 +124,39 @@ function renderSingleView() {
   singleEmpty.hidden = true;
 }
 
+function ensureTimelineBlips(total) {
+  if (state.timelineBlipNodes.length === total) return;
+
+  timelineBlips.textContent = '';
+  state.timelineBlipNodes = [];
+
+  for (let i = 0; i < total; i++) {
+    const blip = document.createElement('span');
+    blip.className = 'blip';
+    state.timelineBlipNodes.push(blip);
+    timelineBlips.appendChild(blip);
+  }
+}
+
 function renderTimeline() {
   if (!timelineSlider || !timelineBlips || !timelineLabel) return;
 
   const total = state.allPins.length;
-  timelineSlider.max = String(total);
-  timelineSlider.value = String(clampVisibleCount(total, state.visibleCount));
+  const clampedVisible = clampVisibleCount(total, state.visibleCount);
 
-  timelineBlips.textContent = '';
-  for (let i = 0; i < total; i++) {
-    const blip = document.createElement('span');
-    blip.className = `blip${i < state.visibleCount ? ' active' : ''}`;
-    timelineBlips.appendChild(blip);
+  timelineSlider.max = String(total);
+  if (!state.sliderDragging || document.activeElement !== timelineSlider) {
+    if (timelineSlider.value !== String(clampedVisible)) {
+      timelineSlider.value = String(clampedVisible);
+    }
   }
 
-  timelineLabel.textContent = timelineStatusLabel(state.visibleCount, total);
+  ensureTimelineBlips(total);
+  for (let i = 0; i < state.timelineBlipNodes.length; i++) {
+    state.timelineBlipNodes[i].classList.toggle('active', i < clampedVisible);
+  }
+
+  timelineLabel.textContent = timelineStatusLabel(clampedVisible, total);
 }
 
 function applyModeUi() {
@@ -145,12 +167,31 @@ function applyModeUi() {
   modeToggle.classList.toggle('active', isSingle);
 }
 
-function setVisibleCount(nextCount) {
+function commitVisibleCount(nextCount) {
   const clamped = clampVisibleCount(state.allPins.length, nextCount);
+  if (clamped === state.visibleCount) {
+    renderTimeline();
+    return;
+  }
+
   state.visibleCount = clamped;
   renderPins();
   renderSingleView();
   renderTimeline();
+}
+
+function setVisibleCount(nextCount) {
+  state.pendingVisibleCount = nextCount;
+
+  if (state.timelineRenderScheduled) return;
+  state.timelineRenderScheduled = true;
+
+  window.requestAnimationFrame(() => {
+    state.timelineRenderScheduled = false;
+    const pending = state.pendingVisibleCount;
+    state.pendingVisibleCount = null;
+    commitVisibleCount(pending);
+  });
 }
 
 function addPinIfNew(item) {
@@ -285,7 +326,25 @@ boardContainer.addEventListener('wheel', (e) => {
   zoomAt(e.clientX, e.clientY, nextScale);
 }, { passive: false });
 
+timelineSlider.addEventListener('pointerdown', () => {
+  state.sliderDragging = true;
+});
+
+function finishSliderDrag() {
+  if (!state.sliderDragging) return;
+  state.sliderDragging = false;
+  renderTimeline();
+}
+
+timelineSlider.addEventListener('pointerup', finishSliderDrag);
+timelineSlider.addEventListener('pointercancel', finishSliderDrag);
+timelineSlider.addEventListener('blur', finishSliderDrag);
+
 timelineSlider.addEventListener('input', () => {
+  setVisibleCount(Number(timelineSlider.value));
+});
+
+timelineSlider.addEventListener('change', () => {
   setVisibleCount(Number(timelineSlider.value));
 });
 
