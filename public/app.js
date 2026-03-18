@@ -4,7 +4,13 @@ const uploadForm = document.getElementById('uploadForm');
 const imageInput = document.getElementById('imageInput');
 const timelineSlider = document.getElementById('timelineSlider');
 const timelineBlips = document.getElementById('timelineBlips');
+const timelineRuler = document.getElementById('timelineRuler');
+const timelinePlayhead = document.getElementById('timelinePlayhead');
 const timelineLabel = document.getElementById('timelineLabel');
+const timelineToStart = document.getElementById('timelineToStart');
+const timelineStepBack = document.getElementById('timelineStepBack');
+const timelineStepForward = document.getElementById('timelineStepForward');
+const timelineToEnd = document.getElementById('timelineToEnd');
 const modeToggle = document.getElementById('modeToggle');
 const singleView = document.getElementById('singleView');
 const singleImage = document.getElementById('singleImage');
@@ -138,6 +144,43 @@ function ensureTimelineBlips(total) {
   }
 }
 
+function renderTimelineRuler(total) {
+  if (!timelineRuler) return;
+  timelineRuler.textContent = '';
+
+  if (total <= 1) {
+    const only = document.createElement('span');
+    only.className = 'ruler-tick major';
+    timelineRuler.appendChild(only);
+    return;
+  }
+
+  const tickCount = Math.max(8, Math.min(24, total + 1));
+  for (let i = 0; i < tickCount; i++) {
+    const tick = document.createElement('span');
+    tick.className = i % 4 === 0 ? 'ruler-tick major' : 'ruler-tick minor';
+    timelineRuler.appendChild(tick);
+  }
+}
+
+function updateTimelinePlayhead(clampedVisible, total) {
+  if (!timelinePlayhead) return;
+
+  const lane = timelinePlayhead.parentElement;
+  const laneWidth = lane ? lane.clientWidth : 0;
+  const inset = 10;
+  const usableWidth = Math.max(0, laneWidth - inset * 2);
+
+  if (total <= 0 || usableWidth <= 0) {
+    timelinePlayhead.style.left = `${inset}px`;
+    return;
+  }
+
+  const ratio = Math.max(0, Math.min(1, clampedVisible / total));
+  const x = inset + usableWidth * ratio;
+  timelinePlayhead.style.left = `${x}px`;
+}
+
 function renderTimeline() {
   if (!timelineSlider || !timelineBlips || !timelineLabel) return;
 
@@ -151,12 +194,19 @@ function renderTimeline() {
     }
   }
 
+  renderTimelineRuler(total);
   ensureTimelineBlips(total);
   for (let i = 0; i < state.timelineBlipNodes.length; i++) {
     state.timelineBlipNodes[i].classList.toggle('active', i < clampedVisible);
   }
 
+  updateTimelinePlayhead(clampedVisible, total);
   timelineLabel.textContent = timelineStatusLabel(clampedVisible, total);
+
+  if (timelineToStart) timelineToStart.disabled = clampedVisible <= 0;
+  if (timelineStepBack) timelineStepBack.disabled = clampedVisible <= 0;
+  if (timelineStepForward) timelineStepForward.disabled = clampedVisible >= total;
+  if (timelineToEnd) timelineToEnd.disabled = clampedVisible >= total;
 }
 
 function applyModeUi() {
@@ -347,6 +397,17 @@ timelineSlider.addEventListener('input', () => {
 timelineSlider.addEventListener('change', () => {
   setVisibleCount(Number(timelineSlider.value));
 });
+
+function updateFromControl(nextCount) {
+  finishSliderDrag();
+  setVisibleCount(nextCount);
+  timelineSlider.focus({ preventScroll: true });
+}
+
+timelineToStart?.addEventListener('click', () => updateFromControl(0));
+timelineStepBack?.addEventListener('click', () => updateFromControl(state.visibleCount - 1));
+timelineStepForward?.addEventListener('click', () => updateFromControl(state.visibleCount + 1));
+timelineToEnd?.addEventListener('click', () => updateFromControl(state.allPins.length));
 
 modeToggle.addEventListener('click', () => {
   state.mode = state.mode === 'board' ? 'single' : 'board';
