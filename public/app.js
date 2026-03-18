@@ -5,6 +5,10 @@ const imageInput = document.getElementById('imageInput');
 const timelineSlider = document.getElementById('timelineSlider');
 const timelineBlips = document.getElementById('timelineBlips');
 const timelineLabel = document.getElementById('timelineLabel');
+const modeToggle = document.getElementById('modeToggle');
+const singleView = document.getElementById('singleView');
+const singleImage = document.getElementById('singleImage');
+const singleEmpty = document.getElementById('singleEmpty');
 
 const GRID_SIZE = 40;
 const historyUtils = window.PinboardHistory || {};
@@ -24,8 +28,29 @@ const state = {
   pinchCenter: { x: 0, y: 0 },
   pinchWorldStart: { x: 0, y: 0 },
   allPins: [],
-  visibleCount: 0
+  visibleCount: 0,
+  mode: 'board',
+  knownPinIds: new Set()
 };
+
+function clampVisibleCount(totalPins, nextCount) {
+  if (historyUtils.clampVisibleCount) return historyUtils.clampVisibleCount(totalPins, nextCount);
+  return Math.max(0, Math.min(totalPins, nextCount));
+}
+
+function timelineStatusLabel(visibleCount, totalPins) {
+  if (historyUtils.timelineStatusLabel) return historyUtils.timelineStatusLabel(visibleCount, totalPins);
+  return visibleCount === totalPins ? 'Latest' : `${visibleCount}/${totalPins} pinned`;
+}
+
+function latestPinAtOrBeforeCutoff(items, visibleCount) {
+  if (historyUtils.latestPinAtOrBeforeCutoff) {
+    return historyUtils.latestPinAtOrBeforeCutoff(items, visibleCount);
+  }
+  const clamped = clampVisibleCount(items.length, visibleCount);
+  if (clamped === 0) return null;
+  return items[clamped - 1] || null;
+}
 
 function syncBackgroundTransform() {
   boardContainer.style.backgroundPosition = `${state.x}px ${state.y}px`;
@@ -80,12 +105,27 @@ function renderPins() {
   visible.forEach((item) => board.appendChild(createPinNode(item)));
 }
 
+function renderSingleView() {
+  const item = latestPinAtOrBeforeCutoff(state.allPins, state.visibleCount);
+  if (!item) {
+    singleImage.removeAttribute('src');
+    singleImage.hidden = true;
+    singleEmpty.hidden = false;
+    return;
+  }
+
+  singleImage.src = item.url;
+  singleImage.alt = item.originalName || 'Pinned image';
+  singleImage.hidden = false;
+  singleEmpty.hidden = true;
+}
+
 function renderTimeline() {
   if (!timelineSlider || !timelineBlips || !timelineLabel) return;
 
   const total = state.allPins.length;
   timelineSlider.max = String(total);
-  timelineSlider.value = String(Math.min(state.visibleCount, total));
+  timelineSlider.value = String(clampVisibleCount(total, state.visibleCount));
 
   timelineBlips.textContent = '';
   for (let i = 0; i < total; i++) {
@@ -94,23 +134,52 @@ function renderTimeline() {
     timelineBlips.appendChild(blip);
   }
 
-  timelineLabel.textContent = state.visibleCount === total
-    ? 'Latest'
-    : `${state.visibleCount}/${total} pinned`;
+  timelineLabel.textContent = timelineStatusLabel(state.visibleCount, total);
+}
+
+function applyModeUi() {
+  const isSingle = state.mode === 'single';
+  board.hidden = isSingle;
+  singleView.hidden = !isSingle;
+  modeToggle.setAttribute('aria-pressed', String(isSingle));
+  modeToggle.classList.toggle('active', isSingle);
 }
 
 function setVisibleCount(nextCount) {
-  const clamped = Math.max(0, Math.min(state.allPins.length, nextCount));
+  const clamped = clampVisibleCount(state.allPins.length, nextCount);
   state.visibleCount = clamped;
   renderPins();
+  renderSingleView();
   renderTimeline();
+}
+
+function addPinIfNew(item) {
+  if (!item || !item.id || state.knownPinIds.has(item.id)) return false;
+  state.knownPinIds.add(item.id);
+  const wasAtLatest = state.visibleCount === state.allPins.length;
+  state.allPins.push(item);
+  setVisibleCount(wasAtLatest ? state.allPins.length : state.visibleCount);
+  return true;
 }
 
 async function loadPins() {
   const res = await fetch('/api/images');
   const items = await res.json();
   state.allPins = [...items];
+  state.knownPinIds = new Set(items.map((item) => item.id));
   setVisibleCount(state.allPins.length);
+}
+
+function connectRealtime() {
+  if (!window.EventSource) return;
+  const stream = new EventSource('/api/stream');
+
+  stream.addEventListener('pin-created', (event) => {
+    try {
+      const item = JSON.parse(event.data);
+      addPinIfNew(item);
+    } catch {}
+  });
 }
 
 function zoomAt(clientX, clientY, nextScale) {
@@ -128,6 +197,7 @@ function zoomAt(clientX, clientY, nextScale) {
 }
 
 boardContainer.addEventListener('pointerdown', (e) => {
+  if (state.mode === 'single') return;
   boardContainer.setPointerCapture(e.pointerId);
   state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -160,6 +230,7 @@ boardContainer.addEventListener('pointerdown', (e) => {
 });
 
 boardContainer.addEventListener('pointermove', (e) => {
+  if (state.mode === 'single') return;
   if (!state.pointers.has(e.pointerId)) return;
   state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -191,9 +262,7 @@ boardContainer.addEventListener('pointermove', (e) => {
 function endPointer(pointerId) {
   state.pointers.delete(pointerId);
 
-  if (state.pointers.size < 2) {
-    state.pinchStartDistance = 0;
-  }
+  if (state.pointers.size < 2) state.pinchStartDistance = 0;
 
   if (state.pointers.size === 0) {
     state.dragging = false;
@@ -205,6 +274,7 @@ boardContainer.addEventListener('pointerup', (e) => endPointer(e.pointerId));
 boardContainer.addEventListener('pointercancel', (e) => endPointer(e.pointerId));
 
 boardContainer.addEventListener('wheel', (e) => {
+  if (state.mode === 'single') return;
   e.preventDefault();
   const delta = -e.deltaY;
   const zoomIntensity = 0.001;
@@ -217,6 +287,12 @@ boardContainer.addEventListener('wheel', (e) => {
 
 timelineSlider.addEventListener('input', () => {
   setVisibleCount(Number(timelineSlider.value));
+});
+
+modeToggle.addEventListener('click', () => {
+  state.mode = state.mode === 'board' ? 'single' : 'board';
+  applyModeUi();
+  renderSingleView();
 });
 
 uploadForm.addEventListener('submit', async (e) => {
@@ -238,9 +314,7 @@ uploadForm.addEventListener('submit', async (e) => {
   }
 
   const item = await res.json();
-  const wasAtLatest = state.visibleCount === state.allPins.length;
-  state.allPins.push(item);
-  setVisibleCount(wasAtLatest ? state.allPins.length : state.visibleCount);
+  addPinIfNew(item);
   uploadForm.reset();
 });
 
@@ -248,5 +322,14 @@ window.addEventListener('resize', () => {
   applyTransform();
 });
 
-applyTransform();
-loadPins();
+async function initialize() {
+  applyTransform();
+  applyModeUi();
+  try {
+    await loadPins();
+  } finally {
+    connectRealtime();
+  }
+}
+
+initialize();

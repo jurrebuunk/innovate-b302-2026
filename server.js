@@ -60,38 +60,130 @@ function randomPos() {
   };
 }
 
+const streamClients = new Set();
+
+function sendSse(res, event, data) {
+  if (!res || res.writableEnded || res.destroyed) return false;
+  try {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function broadcast(event, data) {
+  for (const client of streamClients) {
+    const ok = sendSse(client, event, data);
+    if (!ok) streamClients.delete(client);
+  }
+}
+
+function normalizeUploadError(err) {
+  if (!err) return null;
+  if (err.message === 'ONLY_IMAGES_ALLOWED') {
+    return { status: 400, code: 'ONLY_IMAGES_ALLOWED', message: 'Only image files are allowed' };
+  }
+  return { status: 400, code: 'INVALID_UPLOAD', message: 'Invalid upload payload' };
+}
+
+function createImageFromFile(file) {
+  const pos = randomPos();
+  return {
+    id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+    url: `/uploads/${file.filename}`,
+    x: pos.x,
+    y: pos.y,
+    rotation: Math.round((Math.random() * 16 - 8) * 10) / 10,
+    scale: Math.round((0.75 + Math.random() * 0.7) * 100) / 100,
+    createdAt: new Date().toISOString(),
+    originalName: file.originalname
+  };
+}
+
+let persistQueue = Promise.resolve();
+
+function enqueuePersist(task) {
+  const run = persistQueue.then(task, task);
+  persistQueue = run.catch(() => {});
+  return run;
+}
+
+function persistImage(file) {
+  return enqueuePersist(async () => {
+    const items = loadBoard();
+    const image = createImageFromFile(file);
+    items.push(image);
+    saveBoard(items);
+    broadcast('pin-created', image);
+    return image;
+  });
+}
+
 app.get('/api/images', (_req, res) => {
   res.json(loadBoard());
 });
 
+app.get('/api/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  res.write('event: ready\n');
+  res.write(`data: ${JSON.stringify({ ok: true })}\n\n`);
+
+  streamClients.add(res);
+
+  const heartbeat = setInterval(() => {
+    if (!sendSse(res, 'keepalive', { ok: true })) {
+      clearInterval(heartbeat);
+      streamClients.delete(res);
+    }
+  }, 30000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    streamClients.delete(res);
+  });
+});
+
 app.post('/api/images', (req, res) => {
   upload.single('image')(req, res, (err) => {
-    if (err) {
-      if (err.message === 'ONLY_IMAGES_ALLOWED') {
-        return res.status(400).json({ error: 'Only image files are allowed' });
-      }
-      return res.status(400).json({ error: 'Invalid upload payload' });
-    }
-
+    const uploadError = normalizeUploadError(err);
+    if (uploadError) return res.status(uploadError.status).json({ error: uploadError.message });
     if (!req.file) return res.status(400).json({ error: 'No image file received' });
 
-    const items = loadBoard();
-    const pos = randomPos();
+    persistImage(req.file)
+      .then((image) => res.status(201).json(image))
+      .catch(() => res.status(500).json({ error: 'Failed to persist image' }));
+  });
+});
 
-    const image = {
-      id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
-      url: `/uploads/${req.file.filename}`,
-      x: pos.x,
-      y: pos.y,
-      rotation: Math.round((Math.random() * 16 - 8) * 10) / 10,
-      scale: Math.round((0.75 + Math.random() * 0.7) * 100) / 100,
-      createdAt: new Date().toISOString(),
-      originalName: req.file.originalname
-    };
+app.post('/api/images/script', (req, res) => {
+  upload.single('image')(req, res, (err) => {
+    const uploadError = normalizeUploadError(err);
+    if (uploadError) {
+      return res.status(uploadError.status).json({
+        ok: false,
+        error: { code: uploadError.code, message: uploadError.message }
+      });
+    }
 
-    items.push(image);
-    saveBoard(items);
-    res.status(201).json(image);
+    if (!req.file) {
+      return res.status(400).json({
+        ok: false,
+        error: { code: 'NO_IMAGE_FILE', message: 'No image file received' }
+      });
+    }
+
+    return persistImage(req.file)
+      .then((image) => res.status(201).json({ ok: true, data: image }))
+      .catch(() => res.status(500).json({
+        ok: false,
+        error: { code: 'PERSIST_FAILED', message: 'Failed to persist image' }
+      }));
   });
 });
 

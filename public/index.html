@@ -9,14 +9,21 @@
 <body>
   <div id="toolbar">
     <h1>Giant Pinboard</h1>
-    <form id="uploadForm">
-      <input type="file" id="imageInput" name="image" accept="image/*" required />
-      <button type="submit">Pin</button>
-    </form>
+    <div class="toolbar-actions">
+      <button id="modeToggle" type="button" class="icon-toggle" aria-label="Toggle single-image mode" title="Toggle single-image mode">🖼️</button>
+      <form id="uploadForm">
+        <input type="file" id="imageInput" name="image" accept="image/*" required />
+        <button type="submit">Pin</button>
+      </form>
+    </div>
   </div>
 
   <main id="boardContainer">
     <div id="board"></div>
+    <div id="singleView" aria-live="polite" hidden>
+      <img id="singleImage" alt="Latest image at selected timeline position" />
+      <p id="singleEmpty">No image available at this timeline position.</p>
+    </div>
   </main>
 
   <section id="timeline" aria-label="Pin timeline">

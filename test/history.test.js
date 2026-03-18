@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const {
   clampVisibleCount,
   timelineStatusLabel,
-  backgroundTransform
+  backgroundTransform,
+  latestPinAtOrBeforeCutoff
 } = require('../public/history.js');
 
 test('clampVisibleCount clamps to valid timeline range', () => {
@@ -28,4 +29,12 @@ test('backgroundTransform aligns grid position and scaled size', () => {
     position: '0px 0px',
     size: '4px 4px'
   });
+});
+
+test('latestPinAtOrBeforeCutoff resolves latest historical item at cutoff', () => {
+  const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.equal(latestPinAtOrBeforeCutoff(items, 0), null);
+  assert.deepEqual(latestPinAtOrBeforeCutoff(items, 1), { id: 'a' });
+  assert.deepEqual(latestPinAtOrBeforeCutoff(items, 2), { id: 'b' });
+  assert.deepEqual(latestPinAtOrBeforeCutoff(items, 999), { id: 'c' });
 });

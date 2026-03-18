@@ -21,9 +21,16 @@
     };
   }
 
+  function latestPinAtOrBeforeCutoff(items, visibleCount) {
+    const clamped = clampVisibleCount(items.length, visibleCount);
+    if (clamped === 0) return null;
+    return items[clamped - 1] || null;
+  }
+
   return {
     clampVisibleCount,
     timelineStatusLabel,
-    backgroundTransform
+    backgroundTransform,
+    latestPinAtOrBeforeCutoff
   };
 }));
