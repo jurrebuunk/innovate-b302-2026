@@ -6,6 +6,7 @@ const timelineSlider = document.getElementById('timelineSlider');
 const timelineBlips = document.getElementById('timelineBlips');
 const timelineRuler = document.getElementById('timelineRuler');
 const timelinePlayhead = document.getElementById('timelinePlayhead');
+const timelineLane = timelinePlayhead?.parentElement || null;
 const timelineLabel = document.getElementById('timelineLabel');
 const timelineToStart = document.getElementById('timelineToStart');
 const timelineStepBack = document.getElementById('timelineStepBack');
@@ -40,7 +41,9 @@ const state = {
   sliderDragging: false,
   timelineBlipNodes: [],
   timelineRenderScheduled: false,
-  pendingVisibleCount: null
+  pendingVisibleCount: null,
+  timelineDragging: false,
+  timelinePointerId: null
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -179,6 +182,20 @@ function updateTimelinePlayhead(clampedVisible, total) {
   const ratio = Math.max(0, Math.min(1, clampedVisible / total));
   const x = inset + usableWidth * ratio;
   timelinePlayhead.style.left = `${x}px`;
+}
+
+function timelineClientXToVisibleCount(clientX) {
+  if (!timelineLane) return state.visibleCount;
+  const rect = timelineLane.getBoundingClientRect();
+  const inset = 10;
+  const usableWidth = Math.max(1, rect.width - inset * 2);
+  const x = Math.max(inset, Math.min(rect.width - inset, clientX - rect.left));
+  const ratio = (x - inset) / usableWidth;
+  return Math.round(ratio * state.allPins.length);
+}
+
+function updateTimelineFromPointer(clientX) {
+  setVisibleCount(timelineClientXToVisibleCount(clientX));
 }
 
 function renderTimeline() {
@@ -386,6 +403,14 @@ function finishSliderDrag() {
   renderTimeline();
 }
 
+function stopTimelinePointerDrag() {
+  if (!state.timelineDragging) return;
+  state.timelineDragging = false;
+  state.timelinePointerId = null;
+  timelineLane?.classList.remove('dragging-playhead');
+  renderTimeline();
+}
+
 timelineSlider.addEventListener('pointerup', finishSliderDrag);
 timelineSlider.addEventListener('pointercancel', finishSliderDrag);
 timelineSlider.addEventListener('blur', finishSliderDrag);
@@ -398,8 +423,35 @@ timelineSlider.addEventListener('change', () => {
   setVisibleCount(Number(timelineSlider.value));
 });
 
+timelineLane?.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  if (e.target === timelineSlider) return;
+  state.timelineDragging = true;
+  state.timelinePointerId = e.pointerId;
+  timelineLane.setPointerCapture(e.pointerId);
+  timelineLane.classList.add('dragging-playhead');
+  updateTimelineFromPointer(e.clientX);
+  timelineSlider.focus({ preventScroll: true });
+});
+
+timelineLane?.addEventListener('pointermove', (e) => {
+  if (!state.timelineDragging || e.pointerId !== state.timelinePointerId) return;
+  updateTimelineFromPointer(e.clientX);
+});
+
+timelineLane?.addEventListener('pointerup', (e) => {
+  if (e.pointerId !== state.timelinePointerId) return;
+  stopTimelinePointerDrag();
+});
+
+timelineLane?.addEventListener('pointercancel', (e) => {
+  if (e.pointerId !== state.timelinePointerId) return;
+  stopTimelinePointerDrag();
+});
+
 function updateFromControl(nextCount) {
   finishSliderDrag();
+  stopTimelinePointerDrag();
   setVisibleCount(nextCount);
   timelineSlider.focus({ preventScroll: true });
 }
@@ -413,6 +465,35 @@ modeToggle.addEventListener('click', () => {
   state.mode = state.mode === 'board' ? 'single' : 'board';
   applyModeUi();
   renderSingleView();
+});
+
+window.addEventListener('keydown', (e) => {
+  const target = e.target;
+  const isTypingTarget = target && (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.isContentEditable
+  );
+
+  if (isTypingTarget && target !== timelineSlider) return;
+
+  if (e.key === 'm' || e.key === 'M') {
+    e.preventDefault();
+    modeToggle.click();
+    return;
+  }
+
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    updateFromControl(state.visibleCount - 1);
+    return;
+  }
+
+  if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    updateFromControl(state.visibleCount + 1);
+  }
 });
 
 uploadForm.addEventListener('submit', async (e) => {

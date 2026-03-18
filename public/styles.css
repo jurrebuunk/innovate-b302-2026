@@ -141,6 +141,11 @@ button:hover { background: #2563eb; }
   color: #c7cddc;
 }
 
+.timeline-shortcuts {
+  opacity: 0.7;
+  font-size: 11px;
+}
+
 .timeline-controls {
   display: flex;
   align-items: center;
@@ -181,6 +186,12 @@ button:hover { background: #2563eb; }
   background: linear-gradient(180deg, rgba(29, 35, 47, 0.95), rgba(16, 19, 27, 0.95));
   border: 1px solid #384255;
   overflow: hidden;
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.timeline-editor-lane.dragging-playhead {
+  cursor: grabbing;
 }
 
 .timeline-ruler {
@@ -243,7 +254,17 @@ button:hover { background: #2563eb; }
   background: #fbbf24;
   box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.25);
   transform: translateX(-50%);
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.timeline-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 16px;
+  transform: translateX(-50%);
 }
 
 .timeline-playhead-tip {
@@ -259,18 +280,19 @@ button:hover { background: #2563eb; }
 
 #timelineSlider {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 4px;
-  width: calc(100% - 20px);
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
   margin: 0;
-  background: transparent;
-  accent-color: #60a5fa;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
-#timelineSlider:focus-visible {
+.timeline-editor-lane:focus-within {
   outline: 2px solid #60a5fa;
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
 @media (max-width: 720px) {
