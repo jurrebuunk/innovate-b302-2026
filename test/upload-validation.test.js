@@ -120,3 +120,43 @@ test('SSE stream emits pin-created after successful script upload', async () => 
     server.kill('SIGTERM');
   }
 });
+
+
+test('PATCH /api/images/:id/position persists new coordinates', async () => {
+  const port = 4313;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const server = startServer(port);
+
+  try {
+    await waitForServer(baseUrl);
+
+    const form = new FormData();
+    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'drag-me.png');
+
+    const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
+      method: 'POST',
+      body: form
+    });
+    const uploadBody = await uploadRes.json();
+    assert.equal(uploadRes.status, 201);
+    assert.equal(uploadBody.ok, true);
+
+    const id = uploadBody.data.id;
+
+    const patchRes = await fetch(`${baseUrl}/api/images/${encodeURIComponent(id)}/position`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x: 321, y: -222 })
+    });
+    assert.equal(patchRes.status, 200);
+
+    const listRes = await fetch(`${baseUrl}/api/images`);
+    const items = await listRes.json();
+    const updated = items.find((item) => item.id === id);
+
+    assert.equal(updated.x, 321);
+    assert.equal(updated.y, -222);
+  } finally {
+    server.kill('SIGTERM');
+  }
+});
