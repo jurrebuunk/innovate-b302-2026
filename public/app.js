@@ -672,12 +672,6 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
-  if (e.key === 'Escape' && !imageModal?.hidden) {
-    e.preventDefault();
-    closeImageModal();
-    return;
-  }
-
   if (isTypingTarget && target !== timelineSlider) return;
 
   if (e.key === 'Escape' && state.menuOpen) {
