@@ -25,6 +25,7 @@ const imageModalImage = document.getElementById('imageModalImage');
 const imageModalClose = document.getElementById('imageModalClose');
 
 const GRID_SIZE = 40;
+const TIMELINE_INSET = 10;
 const historyUtils = window.PinboardHistory || {};
 
 const state = {
@@ -66,6 +67,32 @@ function clampVisibleCount(totalPins, nextCount) {
 function timelineStatusLabel(visibleCount, totalPins) {
   if (historyUtils.timelineStatusLabel) return historyUtils.timelineStatusLabel(visibleCount, totalPins);
   return visibleCount === totalPins ? 'Latest' : `${visibleCount}/${totalPins} pinned`;
+}
+
+function timelineStepOffset(visibleCount, totalPins, laneWidth) {
+  if (historyUtils.timelineStepOffset) {
+    return historyUtils.timelineStepOffset(visibleCount, totalPins, laneWidth, TIMELINE_INSET);
+  }
+
+  const clampedTotal = Math.max(0, totalPins);
+  const clampedVisible = clampVisibleCount(clampedTotal, visibleCount);
+  const usableWidth = Math.max(0, laneWidth - TIMELINE_INSET * 2);
+
+  if (clampedTotal <= 0 || usableWidth <= 0) return TIMELINE_INSET;
+
+  return TIMELINE_INSET + (usableWidth * clampedVisible) / clampedTotal;
+}
+
+function timelineVisibleCountFromOffset(offset, totalPins, laneWidth) {
+  if (historyUtils.timelineVisibleCountFromOffset) {
+    return historyUtils.timelineVisibleCountFromOffset(offset, totalPins, laneWidth, TIMELINE_INSET);
+  }
+
+  const clampedTotal = Math.max(0, totalPins);
+  const usableWidth = Math.max(1, laneWidth - TIMELINE_INSET * 2);
+  const clampedOffset = Math.max(TIMELINE_INSET, Math.min(laneWidth - TIMELINE_INSET, offset));
+  const ratio = (clampedOffset - TIMELINE_INSET) / usableWidth;
+  return clampVisibleCount(clampedTotal, Math.round(ratio * clampedTotal));
 }
 
 function latestPinAtOrBeforeCutoff(items, visibleCount) {
@@ -242,6 +269,17 @@ function ensureTimelineBlips(total) {
   }
 }
 
+function updateTimelineBlipPositions(total) {
+  if (!timelineLane || total <= 0) return;
+  const laneWidth = timelineLane.clientWidth;
+
+  for (let i = 0; i < state.timelineBlipNodes.length; i++) {
+    const stepVisibleCount = i + 1;
+    const x = timelineStepOffset(stepVisibleCount, total, laneWidth);
+    state.timelineBlipNodes[i].style.left = `${x}px`;
+  }
+}
+
 function renderTimelineRuler(total) {
   if (!timelineRuler) return;
   timelineRuler.textContent = '';
@@ -266,27 +304,15 @@ function updateTimelinePlayhead(clampedVisible, total) {
 
   const lane = timelinePlayhead.parentElement;
   const laneWidth = lane ? lane.clientWidth : 0;
-  const inset = 10;
-  const usableWidth = Math.max(0, laneWidth - inset * 2);
-
-  if (total <= 0 || usableWidth <= 0) {
-    timelinePlayhead.style.left = `${inset}px`;
-    return;
-  }
-
-  const ratio = Math.max(0, Math.min(1, clampedVisible / total));
-  const x = inset + usableWidth * ratio;
+  const x = timelineStepOffset(clampedVisible, total, laneWidth);
   timelinePlayhead.style.left = `${x}px`;
 }
 
 function timelineClientXToVisibleCount(clientX) {
   if (!timelineLane) return state.visibleCount;
   const rect = timelineLane.getBoundingClientRect();
-  const inset = 10;
-  const usableWidth = Math.max(1, rect.width - inset * 2);
-  const x = Math.max(inset, Math.min(rect.width - inset, clientX - rect.left));
-  const ratio = (x - inset) / usableWidth;
-  return Math.round(ratio * state.allPins.length);
+  const offset = clientX - rect.left;
+  return timelineVisibleCountFromOffset(offset, state.allPins.length, rect.width);
 }
 
 function updateTimelineFromPointer(clientX) {
@@ -308,6 +334,7 @@ function renderTimeline() {
 
   renderTimelineRuler(total);
   ensureTimelineBlips(total);
+  updateTimelineBlipPositions(total);
   for (let i = 0; i < state.timelineBlipNodes.length; i++) {
     state.timelineBlipNodes[i].classList.toggle('active', i < clampedVisible);
   }
