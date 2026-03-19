@@ -79,7 +79,7 @@ button:hover { background: #2563eb; }
 
 #boardContainer {
   position: fixed;
-  inset: 48px 0 108px;
+  inset: 48px 0 126px;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
@@ -128,8 +128,8 @@ button:hover { background: #2563eb; }
   bottom: 0;
   z-index: 101;
   padding: 10px 12px 12px;
-  background: rgba(11, 13, 17, 0.95);
-  border-top: 1px solid #272a33;
+  background: linear-gradient(180deg, rgba(18, 21, 27, 0.95), rgba(9, 11, 16, 0.96));
+  border-top: 1px solid #2f3441;
   backdrop-filter: blur(8px);
 }
 
@@ -137,16 +137,99 @@ button:hover { background: #2563eb; }
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   color: #c7cddc;
 }
 
+.timeline-shortcuts {
+  opacity: 0.7;
+  font-size: 11px;
+}
+
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timeline-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid #3a4150;
+  background: linear-gradient(180deg, #2a303d, #1b202b);
+  color: #d4ddf0;
+  font-size: 13px;
+}
+
+.timeline-btn:hover {
+  background: linear-gradient(180deg, #374154, #242b39);
+}
+
+.timeline-btn:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
+}
+
+.timeline-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.timeline-editor-lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 54px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(29, 35, 47, 0.95), rgba(16, 19, 27, 0.95));
+  border: 1px solid #384255;
+  overflow: hidden;
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.timeline-editor-lane.dragging-playhead {
+  cursor: grabbing;
+}
+
+.timeline-ruler {
+  position: absolute;
+  top: 4px;
+  left: 10px;
+  right: 10px;
+  height: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.ruler-tick {
+  width: 1px;
+  background: #70809f;
+  opacity: 0.75;
+}
+
+.ruler-tick.minor {
+  height: 5px;
+  opacity: 0.45;
+}
+
+.ruler-tick.major {
+  height: 9px;
+}
+
 #timelineBlips {
-  height: 12px;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 21px;
+  height: 10px;
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 6px;
   overflow: hidden;
 }
 
@@ -154,16 +237,62 @@ button:hover { background: #2563eb; }
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #6b7280;
+  background: #5f6d86;
   flex: 0 0 auto;
 }
 
 .blip.active {
-  background: #3b82f6;
+  background: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+.timeline-playhead {
+  position: absolute;
+  top: 4px;
+  bottom: 8px;
+  width: 2px;
+  background: #fbbf24;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.25);
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.timeline-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 16px;
+  transform: translateX(-50%);
+}
+
+.timeline-playhead-tip {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 12px;
+  height: 8px;
+  transform: translate(-50%, -100%);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  background: #fbbf24;
 }
 
 #timelineSlider {
-  width: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.timeline-editor-lane:focus-within {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
 }
 
 @media (max-width: 720px) {
@@ -194,7 +323,7 @@ button:hover { background: #2563eb; }
   }
 
   #boardContainer {
-    inset: 88px 0 112px;
+    inset: 88px 0 132px;
   }
 }
 

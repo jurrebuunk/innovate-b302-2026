@@ -4,7 +4,14 @@ const uploadForm = document.getElementById('uploadForm');
 const imageInput = document.getElementById('imageInput');
 const timelineSlider = document.getElementById('timelineSlider');
 const timelineBlips = document.getElementById('timelineBlips');
+const timelineRuler = document.getElementById('timelineRuler');
+const timelinePlayhead = document.getElementById('timelinePlayhead');
+const timelineLane = timelinePlayhead?.parentElement || null;
 const timelineLabel = document.getElementById('timelineLabel');
+const timelineToStart = document.getElementById('timelineToStart');
+const timelineStepBack = document.getElementById('timelineStepBack');
+const timelineStepForward = document.getElementById('timelineStepForward');
+const timelineToEnd = document.getElementById('timelineToEnd');
 const modeToggle = document.getElementById('modeToggle');
 const singleView = document.getElementById('singleView');
 const singleImage = document.getElementById('singleImage');
@@ -30,7 +37,13 @@ const state = {
   allPins: [],
   visibleCount: 0,
   mode: 'board',
-  knownPinIds: new Set()
+  knownPinIds: new Set(),
+  sliderDragging: false,
+  timelineBlipNodes: [],
+  timelineRenderScheduled: false,
+  pendingVisibleCount: null,
+  timelineDragging: false,
+  timelinePointerId: null
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -120,21 +133,97 @@ function renderSingleView() {
   singleEmpty.hidden = true;
 }
 
+function ensureTimelineBlips(total) {
+  if (state.timelineBlipNodes.length === total) return;
+
+  timelineBlips.textContent = '';
+  state.timelineBlipNodes = [];
+
+  for (let i = 0; i < total; i++) {
+    const blip = document.createElement('span');
+    blip.className = 'blip';
+    state.timelineBlipNodes.push(blip);
+    timelineBlips.appendChild(blip);
+  }
+}
+
+function renderTimelineRuler(total) {
+  if (!timelineRuler) return;
+  timelineRuler.textContent = '';
+
+  if (total <= 1) {
+    const only = document.createElement('span');
+    only.className = 'ruler-tick major';
+    timelineRuler.appendChild(only);
+    return;
+  }
+
+  const tickCount = Math.max(8, Math.min(24, total + 1));
+  for (let i = 0; i < tickCount; i++) {
+    const tick = document.createElement('span');
+    tick.className = i % 4 === 0 ? 'ruler-tick major' : 'ruler-tick minor';
+    timelineRuler.appendChild(tick);
+  }
+}
+
+function updateTimelinePlayhead(clampedVisible, total) {
+  if (!timelinePlayhead) return;
+
+  const lane = timelinePlayhead.parentElement;
+  const laneWidth = lane ? lane.clientWidth : 0;
+  const inset = 10;
+  const usableWidth = Math.max(0, laneWidth - inset * 2);
+
+  if (total <= 0 || usableWidth <= 0) {
+    timelinePlayhead.style.left = `${inset}px`;
+    return;
+  }
+
+  const ratio = Math.max(0, Math.min(1, clampedVisible / total));
+  const x = inset + usableWidth * ratio;
+  timelinePlayhead.style.left = `${x}px`;
+}
+
+function timelineClientXToVisibleCount(clientX) {
+  if (!timelineLane) return state.visibleCount;
+  const rect = timelineLane.getBoundingClientRect();
+  const inset = 10;
+  const usableWidth = Math.max(1, rect.width - inset * 2);
+  const x = Math.max(inset, Math.min(rect.width - inset, clientX - rect.left));
+  const ratio = (x - inset) / usableWidth;
+  return Math.round(ratio * state.allPins.length);
+}
+
+function updateTimelineFromPointer(clientX) {
+  setVisibleCount(timelineClientXToVisibleCount(clientX));
+}
+
 function renderTimeline() {
   if (!timelineSlider || !timelineBlips || !timelineLabel) return;
 
   const total = state.allPins.length;
-  timelineSlider.max = String(total);
-  timelineSlider.value = String(clampVisibleCount(total, state.visibleCount));
+  const clampedVisible = clampVisibleCount(total, state.visibleCount);
 
-  timelineBlips.textContent = '';
-  for (let i = 0; i < total; i++) {
-    const blip = document.createElement('span');
-    blip.className = `blip${i < state.visibleCount ? ' active' : ''}`;
-    timelineBlips.appendChild(blip);
+  timelineSlider.max = String(total);
+  if (!state.sliderDragging || document.activeElement !== timelineSlider) {
+    if (timelineSlider.value !== String(clampedVisible)) {
+      timelineSlider.value = String(clampedVisible);
+    }
   }
 
-  timelineLabel.textContent = timelineStatusLabel(state.visibleCount, total);
+  renderTimelineRuler(total);
+  ensureTimelineBlips(total);
+  for (let i = 0; i < state.timelineBlipNodes.length; i++) {
+    state.timelineBlipNodes[i].classList.toggle('active', i < clampedVisible);
+  }
+
+  updateTimelinePlayhead(clampedVisible, total);
+  timelineLabel.textContent = timelineStatusLabel(clampedVisible, total);
+
+  if (timelineToStart) timelineToStart.disabled = clampedVisible <= 0;
+  if (timelineStepBack) timelineStepBack.disabled = clampedVisible <= 0;
+  if (timelineStepForward) timelineStepForward.disabled = clampedVisible >= total;
+  if (timelineToEnd) timelineToEnd.disabled = clampedVisible >= total;
 }
 
 function applyModeUi() {
@@ -145,12 +234,31 @@ function applyModeUi() {
   modeToggle.classList.toggle('active', isSingle);
 }
 
-function setVisibleCount(nextCount) {
+function commitVisibleCount(nextCount) {
   const clamped = clampVisibleCount(state.allPins.length, nextCount);
+  if (clamped === state.visibleCount) {
+    renderTimeline();
+    return;
+  }
+
   state.visibleCount = clamped;
   renderPins();
   renderSingleView();
   renderTimeline();
+}
+
+function setVisibleCount(nextCount) {
+  state.pendingVisibleCount = nextCount;
+
+  if (state.timelineRenderScheduled) return;
+  state.timelineRenderScheduled = true;
+
+  window.requestAnimationFrame(() => {
+    state.timelineRenderScheduled = false;
+    const pending = state.pendingVisibleCount;
+    state.pendingVisibleCount = null;
+    commitVisibleCount(pending);
+  });
 }
 
 function addPinIfNew(item) {
@@ -285,14 +393,107 @@ boardContainer.addEventListener('wheel', (e) => {
   zoomAt(e.clientX, e.clientY, nextScale);
 }, { passive: false });
 
+timelineSlider.addEventListener('pointerdown', () => {
+  state.sliderDragging = true;
+});
+
+function finishSliderDrag() {
+  if (!state.sliderDragging) return;
+  state.sliderDragging = false;
+  renderTimeline();
+}
+
+function stopTimelinePointerDrag() {
+  if (!state.timelineDragging) return;
+  state.timelineDragging = false;
+  state.timelinePointerId = null;
+  timelineLane?.classList.remove('dragging-playhead');
+  renderTimeline();
+}
+
+timelineSlider.addEventListener('pointerup', finishSliderDrag);
+timelineSlider.addEventListener('pointercancel', finishSliderDrag);
+timelineSlider.addEventListener('blur', finishSliderDrag);
+
 timelineSlider.addEventListener('input', () => {
   setVisibleCount(Number(timelineSlider.value));
 });
+
+timelineSlider.addEventListener('change', () => {
+  setVisibleCount(Number(timelineSlider.value));
+});
+
+timelineLane?.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  if (e.target === timelineSlider) return;
+  state.timelineDragging = true;
+  state.timelinePointerId = e.pointerId;
+  timelineLane.setPointerCapture(e.pointerId);
+  timelineLane.classList.add('dragging-playhead');
+  updateTimelineFromPointer(e.clientX);
+  timelineSlider.focus({ preventScroll: true });
+});
+
+timelineLane?.addEventListener('pointermove', (e) => {
+  if (!state.timelineDragging || e.pointerId !== state.timelinePointerId) return;
+  updateTimelineFromPointer(e.clientX);
+});
+
+timelineLane?.addEventListener('pointerup', (e) => {
+  if (e.pointerId !== state.timelinePointerId) return;
+  stopTimelinePointerDrag();
+});
+
+timelineLane?.addEventListener('pointercancel', (e) => {
+  if (e.pointerId !== state.timelinePointerId) return;
+  stopTimelinePointerDrag();
+});
+
+function updateFromControl(nextCount) {
+  finishSliderDrag();
+  stopTimelinePointerDrag();
+  setVisibleCount(nextCount);
+  timelineSlider.focus({ preventScroll: true });
+}
+
+timelineToStart?.addEventListener('click', () => updateFromControl(0));
+timelineStepBack?.addEventListener('click', () => updateFromControl(state.visibleCount - 1));
+timelineStepForward?.addEventListener('click', () => updateFromControl(state.visibleCount + 1));
+timelineToEnd?.addEventListener('click', () => updateFromControl(state.allPins.length));
 
 modeToggle.addEventListener('click', () => {
   state.mode = state.mode === 'board' ? 'single' : 'board';
   applyModeUi();
   renderSingleView();
+});
+
+window.addEventListener('keydown', (e) => {
+  const target = e.target;
+  const isTypingTarget = target && (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.isContentEditable
+  );
+
+  if (isTypingTarget && target !== timelineSlider) return;
+
+  if (e.key === 'm' || e.key === 'M') {
+    e.preventDefault();
+    modeToggle.click();
+    return;
+  }
+
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    updateFromControl(state.visibleCount - 1);
+    return;
+  }
+
+  if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    updateFromControl(state.visibleCount + 1);
+  }
 });
 
 uploadForm.addEventListener('submit', async (e) => {

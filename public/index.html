@@ -28,11 +28,23 @@
 
   <section id="timeline" aria-label="Pin timeline">
     <div class="timeline-header">
-      <span>Timeline</span>
+      <span>Timeline <span class="timeline-shortcuts">(M mode, ←/→ step)</span></span>
       <span id="timelineLabel">Latest</span>
     </div>
-    <div id="timelineBlips" aria-hidden="true"></div>
-    <input id="timelineSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Timeline selector" />
+    <div class="timeline-controls" aria-label="Timeline controls">
+      <button id="timelineToStart" type="button" class="timeline-btn" aria-label="Jump to start" title="Jump to start">⏮</button>
+      <button id="timelineStepBack" type="button" class="timeline-btn" aria-label="Step backward" title="Step backward">◀</button>
+      <div class="timeline-editor-lane">
+        <div class="timeline-ruler" id="timelineRuler" aria-hidden="true"></div>
+        <div id="timelineBlips" aria-hidden="true"></div>
+        <div class="timeline-playhead" id="timelinePlayhead" aria-hidden="true">
+          <span class="timeline-playhead-tip"></span>
+        </div>
+        <input id="timelineSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Timeline selector" />
+      </div>
+      <button id="timelineStepForward" type="button" class="timeline-btn" aria-label="Step forward" title="Step forward">▶</button>
+      <button id="timelineToEnd" type="button" class="timeline-btn" aria-label="Jump to latest" title="Jump to latest">⏭</button>
+    </div>
   </section>
 
   <script src="/history.js"></script>
