@@ -27,6 +27,13 @@
     </div>
   </main>
 
+  <div id="imageModal" class="image-modal" role="dialog" aria-modal="true" aria-label="Pinned image preview" hidden>
+    <div class="image-modal__panel">
+      <button id="imageModalClose" type="button" class="image-modal__close" aria-label="Close image preview">✕</button>
+      <img id="imageModalImage" alt="Pinned image preview" />
+    </div>
+  </div>
+
   <section id="timeline" aria-label="Pin timeline">
     <div class="timeline-header">
       <span>Timeline <span class="timeline-shortcuts">(M mode, ←/→ step)</span></span>

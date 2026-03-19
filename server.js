@@ -121,6 +121,19 @@ function persistImage(file) {
   });
 }
 
+function persistImagePosition(id, x, y) {
+  return enqueuePersist(async () => {
+    const items = loadBoard();
+    const index = items.findIndex((item) => item.id === id);
+    if (index === -1) return null;
+
+    items[index] = { ...items[index], x, y };
+    saveBoard(items);
+    broadcast('pin-updated', items[index]);
+    return items[index];
+  });
+}
+
 app.get('/api/images', (_req, res) => {
   res.json(loadBoard());
 });
@@ -185,6 +198,23 @@ app.post('/api/images/script', (req, res) => {
         error: { code: 'PERSIST_FAILED', message: 'Failed to persist image' }
       }));
   });
+});
+
+app.patch('/api/images/:id/position', (req, res) => {
+  const { id } = req.params;
+  const x = Number(req.body?.x);
+  const y = Number(req.body?.y);
+
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return res.status(400).json({ error: 'x and y must be finite numbers' });
+  }
+
+  return persistImagePosition(id, Math.round(x), Math.round(y))
+    .then((image) => {
+      if (!image) return res.status(404).json({ error: 'Image not found' });
+      return res.json(image);
+    })
+    .catch(() => res.status(500).json({ error: 'Failed to persist image position' }));
 });
 
 app.use((_req, res) => {

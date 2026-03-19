@@ -20,6 +20,9 @@ const themeToggle = document.getElementById('themeToggle');
 const singleView = document.getElementById('singleView');
 const singleImage = document.getElementById('singleImage');
 const singleEmpty = document.getElementById('singleEmpty');
+const imageModal = document.getElementById('imageModal');
+const imageModalImage = document.getElementById('imageModalImage');
+const imageModalClose = document.getElementById('imageModalClose');
 
 const GRID_SIZE = 40;
 const historyUtils = window.PinboardHistory || {};
@@ -49,7 +52,10 @@ const state = {
   timelineDragging: false,
   timelinePointerId: null,
   menuOpen: false,
-  theme: window.localStorage.getItem('pinboard-theme') || 'dark'
+  theme: window.localStorage.getItem('pinboard-theme') || 'dark',
+  modalPinId: null,
+  pinDrag: null,
+  positionPersistTimers: new Map()
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -98,11 +104,46 @@ function fallbackVariation(item) {
   return { rotation, scale };
 }
 
+function updateLocalPinPosition(id, x, y) {
+  const item = state.allPins.find((entry) => entry.id === id);
+  if (!item) return;
+  item.x = x;
+  item.y = y;
+}
+
+async function persistPinPosition(id, x, y) {
+  try {
+    const res = await fetch(`/api/images/${encodeURIComponent(id)}/position`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x, y })
+    });
+
+    if (!res.ok) return;
+    const updated = await res.json();
+    updateLocalPinPosition(updated.id, updated.x, updated.y);
+  } catch {}
+}
+
+function schedulePinPositionPersist(id, x, y) {
+  const prev = state.positionPersistTimers.get(id);
+  if (prev) window.clearTimeout(prev);
+
+  const timer = window.setTimeout(() => {
+    state.positionPersistTimers.delete(id);
+    persistPinPosition(id, x, y);
+  }, 150);
+
+  state.positionPersistTimers.set(id, timer);
+}
+
 function createPinNode(item) {
   const pin = document.createElement('div');
   pin.className = 'pin';
+  pin.dataset.pinId = item.id;
   pin.style.left = `${item.x}px`;
   pin.style.top = `${item.y}px`;
+  pin.style.touchAction = 'none';
 
   const variation = fallbackVariation(item);
   const rotation = Number.isFinite(item.rotation) ? item.rotation : variation.rotation;
@@ -115,6 +156,54 @@ function createPinNode(item) {
   img.loading = 'lazy';
 
   pin.appendChild(img);
+
+  pin.addEventListener('pointerdown', (e) => {
+    if (state.mode === 'single') return;
+    if (e.button !== 0) return;
+    if (state.pinDrag || state.pointers.size > 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    pin.setPointerCapture(e.pointerId);
+
+    state.pinDrag = {
+      pointerId: e.pointerId,
+      id: item.id,
+      offsetX: e.clientX - Number.parseFloat(pin.style.left || '0'),
+      offsetY: e.clientY - Number.parseFloat(pin.style.top || '0')
+    };
+
+    boardContainer.classList.add('dragging');
+  });
+
+  pin.addEventListener('pointermove', (e) => {
+    if (!state.pinDrag || state.pinDrag.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const nextX = Math.round(e.clientX - state.pinDrag.offsetX);
+    const nextY = Math.round(e.clientY - state.pinDrag.offsetY);
+    pin.style.left = `${nextX}px`;
+    pin.style.top = `${nextY}px`;
+    updateLocalPinPosition(item.id, nextX, nextY);
+  });
+
+  const finishPinDrag = (e) => {
+    if (!state.pinDrag || state.pinDrag.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const finalX = Number.parseFloat(pin.style.left || '0');
+    const finalY = Number.parseFloat(pin.style.top || '0');
+    schedulePinPositionPersist(item.id, finalX, finalY);
+
+    state.pinDrag = null;
+    boardContainer.classList.remove('dragging');
+  };
+
+  pin.addEventListener('pointerup', finishPinDrag);
+  pin.addEventListener('pointercancel', finishPinDrag);
+
   return pin;
 }
 
@@ -244,6 +333,22 @@ function applyThemeUi() {
   themeToggle.textContent = state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
 }
 
+function closeImageModal() {
+  if (!imageModal || imageModal.hidden) return;
+  imageModal.hidden = true;
+  state.modalPinId = null;
+  imageModalImage?.removeAttribute('src');
+  imageModalImage?.removeAttribute('alt');
+}
+
+function openImageModal(item) {
+  if (!item || !imageModal || !imageModalImage) return;
+  imageModalImage.src = item.url;
+  imageModalImage.alt = item.originalName || 'Pinned image preview';
+  imageModal.hidden = false;
+  state.modalPinId = item.id || null;
+}
+
 function closeMenu() {
   state.menuOpen = false;
   settingsButton.setAttribute('aria-expanded', 'false');
@@ -318,6 +423,14 @@ function connectRealtime() {
       addPinIfNew(item);
     } catch {}
   });
+
+  stream.addEventListener('pin-updated', (event) => {
+    try {
+      const item = JSON.parse(event.data);
+      updateLocalPinPosition(item.id, item.x, item.y);
+      if (state.mode === 'board') renderPins();
+    } catch {}
+  });
 }
 
 function zoomAt(clientX, clientY, nextScale) {
@@ -336,6 +449,8 @@ function zoomAt(clientX, clientY, nextScale) {
 
 boardContainer.addEventListener('pointerdown', (e) => {
   if (state.mode === 'single') return;
+  if (state.pinDrag) return;
+  if (e.target.closest('.pin')) return;
   boardContainer.setPointerCapture(e.pointerId);
   state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -369,6 +484,7 @@ boardContainer.addEventListener('pointerdown', (e) => {
 
 boardContainer.addEventListener('pointermove', (e) => {
   if (state.mode === 'single') return;
+  if (state.pinDrag) return;
   if (!state.pointers.has(e.pointerId)) return;
   state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -495,6 +611,7 @@ modeToggle.addEventListener('click', () => {
   state.mode = state.mode === 'board' ? 'single' : 'board';
   applyModeUi();
   renderSingleView();
+  closeImageModal();
   closeMenu();
 });
 
@@ -515,6 +632,25 @@ settingsButton.addEventListener('click', (e) => {
   toggleMenu();
 });
 
+board.addEventListener('click', (e) => {
+  if (state.mode !== 'board') return;
+  const pin = e.target.closest('.pin');
+  if (!pin) return;
+  const pinId = pin.dataset.pinId;
+  const item = state.allPins.find((entry) => entry.id === pinId);
+  if (!item) return;
+  openImageModal(item);
+});
+
+imageModalClose?.addEventListener('click', () => {
+  closeImageModal();
+});
+
+imageModal?.addEventListener('click', (e) => {
+  if (e.target !== imageModal) return;
+  closeImageModal();
+});
+
 document.addEventListener('click', (e) => {
   if (settingsMenu.hidden) return;
   if (settingsMenu.contains(e.target) || settingsButton.contains(e.target)) return;
@@ -529,6 +665,18 @@ window.addEventListener('keydown', (e) => {
     target.tagName === 'SELECT' ||
     target.isContentEditable
   );
+
+  if (e.key === 'Escape' && !imageModal?.hidden) {
+    e.preventDefault();
+    closeImageModal();
+    return;
+  }
+
+  if (e.key === 'Escape' && !imageModal?.hidden) {
+    e.preventDefault();
+    closeImageModal();
+    return;
+  }
 
   if (isTypingTarget && target !== timelineSlider) return;
 
@@ -593,6 +741,7 @@ async function initialize() {
   applyModeUi();
   applyThemeUi();
   closeMenu();
+  closeImageModal();
   try {
     await loadPins();
   } finally {
