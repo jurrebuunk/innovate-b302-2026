@@ -7,16 +7,17 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div id="toolbar">
-    <h1>Giant Pinboard</h1>
-    <div class="toolbar-actions">
-      <button id="modeToggle" type="button" class="icon-toggle" aria-label="Toggle single-image mode" title="Toggle single-image mode">🖼️</button>
-      <form id="uploadForm">
-        <input type="file" id="imageInput" name="image" accept="image/*" required />
-        <button type="submit">Pin</button>
-      </form>
-    </div>
+  <button id="settingsButton" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settingsMenu" aria-label="Open settings" title="Settings">⚙️</button>
+  <div id="settingsMenu" role="menu" aria-labelledby="settingsButton" hidden>
+    <button id="menuUpload" type="button" role="menuitem">Upload image</button>
+    <button id="modeToggle" type="button" role="menuitem">Switch to single mode</button>
+    <button id="themeToggle" type="button" role="menuitem">Switch to light mode</button>
   </div>
+
+  <form id="uploadForm" hidden>
+    <input type="file" id="imageInput" name="image" accept="image/*" required />
+    <button type="submit">Pin</button>
+  </form>
 
   <main id="boardContainer">
     <div id="board"></div>
