@@ -24,3 +24,14 @@ test('clicking a pin in board mode opens the image modal', () => {
   assert.match(appJs, /const pin = e\.target\.closest\('\.pin'\);/);
   assert.match(appJs, /openImageModal\(item\);/);
 });
+
+test('dragging a pin suppresses modal open on release click', () => {
+  assert.match(appJs, /if \(!state\.pinDrag\.moved && Math\.hypot\(moveDx, moveDy\) > 4\) \{/);
+  assert.match(appJs, /state\.suppressModalForPinId = item\.id;/);
+  assert.match(appJs, /Date\.now\(\) <= state\.suppressModalUntil/);
+});
+
+test('timeline blips are positioned by index ratio across lane', () => {
+  assert.match(appJs, /const ratio = total <= 1 \? 0 : i \/ maxIndex;/);
+  assert.match(appJs, /blip\.style\.left = `\$\{ratio \* 100\}%`;/);
+});
