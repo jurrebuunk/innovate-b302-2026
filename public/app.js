@@ -55,7 +55,9 @@ const state = {
   theme: window.localStorage.getItem('pinboard-theme') || 'dark',
   modalPinId: null,
   pinDrag: null,
-  positionPersistTimers: new Map()
+  positionPersistTimers: new Map(),
+  suppressModalForPinId: null,
+  suppressModalUntil: 0
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -170,7 +172,10 @@ function createPinNode(item) {
       pointerId: e.pointerId,
       id: item.id,
       offsetX: e.clientX - Number.parseFloat(pin.style.left || '0'),
-      offsetY: e.clientY - Number.parseFloat(pin.style.top || '0')
+      offsetY: e.clientY - Number.parseFloat(pin.style.top || '0'),
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      moved: false
     };
 
     boardContainer.classList.add('dragging');
@@ -180,6 +185,12 @@ function createPinNode(item) {
     if (!state.pinDrag || state.pinDrag.pointerId !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
+
+    const moveDx = e.clientX - state.pinDrag.startClientX;
+    const moveDy = e.clientY - state.pinDrag.startClientY;
+    if (!state.pinDrag.moved && Math.hypot(moveDx, moveDy) > 4) {
+      state.pinDrag.moved = true;
+    }
 
     const nextX = Math.round(e.clientX - state.pinDrag.offsetX);
     const nextY = Math.round(e.clientY - state.pinDrag.offsetY);
@@ -193,9 +204,15 @@ function createPinNode(item) {
     e.preventDefault();
     e.stopPropagation();
 
+    const drag = state.pinDrag;
     const finalX = Number.parseFloat(pin.style.left || '0');
     const finalY = Number.parseFloat(pin.style.top || '0');
     schedulePinPositionPersist(item.id, finalX, finalY);
+
+    if (drag.moved) {
+      state.suppressModalForPinId = item.id;
+      state.suppressModalUntil = Date.now() + 400;
+    }
 
     state.pinDrag = null;
     boardContainer.classList.remove('dragging');
@@ -308,8 +325,12 @@ function renderTimeline() {
 
   renderTimelineRuler(total);
   ensureTimelineBlips(total);
+  const maxIndex = Math.max(1, total - 1);
   for (let i = 0; i < state.timelineBlipNodes.length; i++) {
-    state.timelineBlipNodes[i].classList.toggle('active', i < clampedVisible);
+    const blip = state.timelineBlipNodes[i];
+    const ratio = total <= 1 ? 0 : i / maxIndex;
+    blip.style.left = `${ratio * 100}%`;
+    blip.classList.toggle('active', i < clampedVisible);
   }
 
   updateTimelinePlayhead(clampedVisible, total);
@@ -637,6 +658,19 @@ board.addEventListener('click', (e) => {
   const pin = e.target.closest('.pin');
   if (!pin) return;
   const pinId = pin.dataset.pinId;
+
+  if (
+    state.suppressModalForPinId === pinId &&
+    Date.now() <= state.suppressModalUntil
+  ) {
+    state.suppressModalForPinId = null;
+    state.suppressModalUntil = 0;
+    return;
+  }
+
+  state.suppressModalForPinId = null;
+  state.suppressModalUntil = 0;
+
   const item = state.allPins.find((entry) => entry.id === pinId);
   if (!item) return;
   openImageModal(item);

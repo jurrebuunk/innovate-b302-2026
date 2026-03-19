@@ -241,18 +241,18 @@ button:hover { background: #2563eb; }
   right: 10px;
   bottom: 21px;
   height: 10px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .blip {
+  position: absolute;
+  top: 50%;
   width: 6px;
   height: 6px;
   border-radius: 999px;
   background: #5f6d86;
-  flex: 0 0 auto;
+  transform: translate(-50%, -50%);
 }
 
 .blip.active {
