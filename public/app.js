@@ -12,7 +12,11 @@ const timelineToStart = document.getElementById('timelineToStart');
 const timelineStepBack = document.getElementById('timelineStepBack');
 const timelineStepForward = document.getElementById('timelineStepForward');
 const timelineToEnd = document.getElementById('timelineToEnd');
+const settingsButton = document.getElementById('settingsButton');
+const settingsMenu = document.getElementById('settingsMenu');
+const menuUpload = document.getElementById('menuUpload');
 const modeToggle = document.getElementById('modeToggle');
+const themeToggle = document.getElementById('themeToggle');
 const singleView = document.getElementById('singleView');
 const singleImage = document.getElementById('singleImage');
 const singleEmpty = document.getElementById('singleEmpty');
@@ -25,7 +29,7 @@ const state = {
   minScale: 0.2,
   maxScale: 4,
   x: window.innerWidth / 2,
-  y: (window.innerHeight - 108) / 2,
+  y: (window.innerHeight - 126) / 2,
   dragging: false,
   dragStartX: 0,
   dragStartY: 0,
@@ -43,7 +47,9 @@ const state = {
   timelineRenderScheduled: false,
   pendingVisibleCount: null,
   timelineDragging: false,
-  timelinePointerId: null
+  timelinePointerId: null,
+  menuOpen: false,
+  theme: window.localStorage.getItem('pinboard-theme') || 'dark'
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -230,8 +236,32 @@ function applyModeUi() {
   const isSingle = state.mode === 'single';
   board.hidden = isSingle;
   singleView.hidden = !isSingle;
-  modeToggle.setAttribute('aria-pressed', String(isSingle));
-  modeToggle.classList.toggle('active', isSingle);
+  modeToggle.textContent = isSingle ? 'Switch to board mode' : 'Switch to single mode';
+}
+
+function applyThemeUi() {
+  document.body.dataset.theme = state.theme;
+  themeToggle.textContent = state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+}
+
+function closeMenu() {
+  state.menuOpen = false;
+  settingsButton.setAttribute('aria-expanded', 'false');
+  settingsMenu.hidden = true;
+}
+
+function openMenu() {
+  state.menuOpen = true;
+  settingsButton.setAttribute('aria-expanded', 'true');
+  settingsMenu.hidden = false;
+}
+
+function toggleMenu() {
+  if (state.menuOpen) {
+    closeMenu();
+  } else {
+    openMenu();
+  }
 }
 
 function commitVisibleCount(nextCount) {
@@ -465,6 +495,30 @@ modeToggle.addEventListener('click', () => {
   state.mode = state.mode === 'board' ? 'single' : 'board';
   applyModeUi();
   renderSingleView();
+  closeMenu();
+});
+
+themeToggle.addEventListener('click', () => {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  window.localStorage.setItem('pinboard-theme', state.theme);
+  applyThemeUi();
+  closeMenu();
+});
+
+menuUpload.addEventListener('click', () => {
+  closeMenu();
+  imageInput.click();
+});
+
+settingsButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleMenu();
+});
+
+document.addEventListener('click', (e) => {
+  if (settingsMenu.hidden) return;
+  if (settingsMenu.contains(e.target) || settingsButton.contains(e.target)) return;
+  closeMenu();
 });
 
 window.addEventListener('keydown', (e) => {
@@ -477,6 +531,12 @@ window.addEventListener('keydown', (e) => {
   );
 
   if (isTypingTarget && target !== timelineSlider) return;
+
+  if (e.key === 'Escape' && state.menuOpen) {
+    e.preventDefault();
+    closeMenu();
+    return;
+  }
 
   if (e.key === 'm' || e.key === 'M') {
     e.preventDefault();
@@ -494,6 +554,11 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     updateFromControl(state.visibleCount + 1);
   }
+});
+
+imageInput.addEventListener('change', () => {
+  if (!imageInput.files[0]) return;
+  uploadForm.requestSubmit();
 });
 
 uploadForm.addEventListener('submit', async (e) => {
@@ -526,6 +591,8 @@ window.addEventListener('resize', () => {
 async function initialize() {
   applyTransform();
   applyModeUi();
+  applyThemeUi();
+  closeMenu();
   try {
     await loadPins();
   } finally {
