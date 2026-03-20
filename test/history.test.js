@@ -5,6 +5,8 @@ const {
   clampVisibleCount,
   timelineStatusLabel,
   backgroundTransform,
+  timelineStepOffset,
+  timelineVisibleCountFromOffset,
   latestPinAtOrBeforeCutoff
 } = require('../public/history.js');
 
@@ -29,6 +31,20 @@ test('backgroundTransform aligns grid position and scaled size', () => {
     position: '0px 0px',
     size: '4px 4px'
   });
+});
+
+test('timeline step offsets and offset-to-step conversion stay aligned', () => {
+  const laneWidth = 310;
+  const totalPins = 6;
+  const inset = 10;
+
+  assert.equal(timelineStepOffset(0, totalPins, laneWidth, inset), 10);
+  assert.equal(timelineStepOffset(6, totalPins, laneWidth, inset), 300);
+
+  for (let visibleCount = 0; visibleCount <= totalPins; visibleCount++) {
+    const offset = timelineStepOffset(visibleCount, totalPins, laneWidth, inset);
+    assert.equal(timelineVisibleCountFromOffset(offset, totalPins, laneWidth, inset), visibleCount);
+  }
 });
 
 test('latestPinAtOrBeforeCutoff resolves latest historical item at cutoff', () => {
