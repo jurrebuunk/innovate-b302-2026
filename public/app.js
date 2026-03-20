@@ -48,6 +48,7 @@ const state = {
   knownPinIds: new Set(),
   sliderDragging: false,
   timelineBlipNodes: [],
+  timelineBlipLayout: null,
   timelineRenderScheduled: false,
   pendingVisibleCount: null,
   timelineDragging: false,
@@ -260,6 +261,7 @@ function ensureTimelineBlips(total) {
 
   timelineBlips.textContent = '';
   state.timelineBlipNodes = [];
+  state.timelineBlipLayout = null;
 
   for (let i = 0; i < total; i++) {
     const blip = document.createElement('span');
@@ -273,11 +275,23 @@ function updateTimelineBlipPositions(total) {
   if (!timelineLane || total <= 0) return;
   const laneWidth = timelineLane.clientWidth;
 
+  if (!state.timelineBlipLayout) {
+    state.timelineBlipLayout = { laneWidth: -1, total: -1 };
+  }
+
+  const layout = state.timelineBlipLayout;
+  if (layout.laneWidth === laneWidth && layout.total === total) {
+    return;
+  }
+
   for (let i = 0; i < state.timelineBlipNodes.length; i++) {
     const stepVisibleCount = i + 1;
     const x = timelineStepOffset(stepVisibleCount, total, laneWidth);
     state.timelineBlipNodes[i].style.left = `${x}px`;
   }
+
+  layout.laneWidth = laneWidth;
+  layout.total = total;
 }
 
 function renderTimelineRuler(total) {
