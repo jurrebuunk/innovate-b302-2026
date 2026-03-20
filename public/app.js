@@ -311,8 +311,9 @@ function updateTimelinePlayhead(clampedVisible, total) {
 function timelineClientXToVisibleCount(clientX) {
   if (!timelineLane) return state.visibleCount;
   const rect = timelineLane.getBoundingClientRect();
-  const offset = clientX - rect.left;
-  return timelineVisibleCountFromOffset(offset, state.allPins.length, rect.width);
+  const laneWidth = timelineLane.clientWidth;
+  const offset = clientX - rect.left - timelineLane.clientLeft;
+  return timelineVisibleCountFromOffset(offset, state.allPins.length, laneWidth);
 }
 
 function updateTimelineFromPointer(clientX) {
