@@ -1,7 +1,5 @@
 const board = document.getElementById('board');
 const boardContainer = document.getElementById('boardContainer');
-const uploadForm = document.getElementById('uploadForm');
-const imageInput = document.getElementById('imageInput');
 const timelineSlider = document.getElementById('timelineSlider');
 const timelineBlips = document.getElementById('timelineBlips');
 const timelineRuler = document.getElementById('timelineRuler');
@@ -413,6 +411,30 @@ async function loadPins() {
   setVisibleCount(state.allPins.length);
 }
 
+async function addImageFromUrl() {
+  const imageUrl = window.prompt('Enter an image URL to pin');
+  if (!imageUrl) return;
+
+  const promptText = window.prompt('Optional prompt or notes for this image')?.trim();
+  const body = { imageUrl };
+  if (promptText) body.prompt = promptText;
+
+  const res = await fetch('/api/images', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    alert(payload?.error || 'Pin failed');
+    return;
+  }
+
+  const item = await res.json();
+  addPinIfNew(item);
+}
+
 function connectRealtime() {
   if (!window.EventSource) return;
   const stream = new EventSource('/api/stream');
@@ -622,9 +644,9 @@ themeToggle.addEventListener('click', () => {
   closeMenu();
 });
 
-menuUpload.addEventListener('click', () => {
+menuUpload.addEventListener('click', async () => {
   closeMenu();
-  imageInput.click();
+  await addImageFromUrl();
 });
 
 settingsButton.addEventListener('click', (e) => {
@@ -696,34 +718,6 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     updateFromControl(state.visibleCount + 1);
   }
-});
-
-imageInput.addEventListener('change', () => {
-  if (!imageInput.files[0]) return;
-  uploadForm.requestSubmit();
-});
-
-uploadForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const file = imageInput.files[0];
-  if (!file) return;
-
-  const fd = new FormData();
-  fd.append('image', file);
-
-  const res = await fetch('/api/images', {
-    method: 'POST',
-    body: fd
-  });
-
-  if (!res.ok) {
-    alert('Upload failed');
-    return;
-  }
-
-  const item = await res.json();
-  addPinIfNew(item);
-  uploadForm.reset();
 });
 
 window.addEventListener('resize', () => {

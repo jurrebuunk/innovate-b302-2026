@@ -1,5 +1,4 @@
 const express = require('express');
-const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -10,11 +9,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
-
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const boardFile = path.join(__dirname, 'board.json');
 
@@ -30,24 +25,6 @@ function loadBoard() {
 function saveBoard(items) {
   fs.writeFileSync(boardFile, JSON.stringify(items, null, 2));
 }
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const safeName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    cb(null, safeName);
-  }
-});
-
-const upload = multer({
-  storage,
-  fileFilter: (_req, file, cb) => {
-    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-      return cb(new Error('ONLY_IMAGES_ALLOWED'));
-    }
-    cb(null, true);
-  }
-});
 
 const CLUSTER_RADIUS = 900;
 
@@ -81,14 +58,6 @@ function broadcast(event, data) {
   }
 }
 
-function normalizeUploadError(err) {
-  if (!err) return null;
-  if (err.message === 'ONLY_IMAGES_ALLOWED') {
-    return { status: 400, code: 'ONLY_IMAGES_ALLOWED', message: 'Only image files are allowed' };
-  }
-  return { status: 400, code: 'INVALID_UPLOAD', message: 'Invalid upload payload' };
-}
-
 function normalizePrompt(prompt) {
   if (prompt == null) return null;
 
@@ -110,22 +79,51 @@ function normalizePrompt(prompt) {
   return prompt;
 }
 
-function promptToHeaderValue(prompt) {
-  if (prompt == null) return null;
-  return typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+function normalizeImageUrl(imageUrl) {
+  if (typeof imageUrl !== 'string') return null;
+
+  const trimmed = imageUrl.trim();
+  if (trimmed.length === 0) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.href;
+  } catch {
+    return null;
+  }
 }
 
-function createImageFromFile(file, prompt) {
+function normalizeImageUrlError(imageUrl) {
+  if (imageUrl == null) {
+    return { status: 400, code: 'NO_IMAGE_URL', message: 'No image URL received' };
+  }
+
+  if (typeof imageUrl !== 'string' || imageUrl.trim().length === 0) {
+    return { status: 400, code: 'NO_IMAGE_URL', message: 'No image URL received' };
+  }
+
+  if (!normalizeImageUrl(imageUrl)) {
+    return {
+      status: 400,
+      code: 'INVALID_IMAGE_URL',
+      message: 'Image URL must be an absolute http or https URL'
+    };
+  }
+
+  return null;
+}
+
+function createImageFromUrl(imageUrl, prompt) {
   const pos = randomPos();
   return {
     id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
-    url: `/uploads/${file.filename}`,
+    url: normalizeImageUrl(imageUrl),
     x: pos.x,
     y: pos.y,
     rotation: Math.round((Math.random() * 16 - 8) * 10) / 10,
     scale: Math.round((0.75 + Math.random() * 0.7) * 100) / 100,
     createdAt: new Date().toISOString(),
-    originalName: file.originalname,
     prompt: normalizePrompt(prompt)
   };
 }
@@ -138,10 +136,10 @@ function enqueuePersist(task) {
   return run;
 }
 
-function persistImage(file, prompt) {
+function persistImage(imageUrl, prompt) {
   return enqueuePersist(async () => {
     const items = loadBoard();
-    const image = createImageFromFile(file, prompt);
+    const image = createImageFromUrl(imageUrl, prompt);
     items.push(image);
     saveBoard(items);
     broadcast('pin-created', image);
@@ -191,41 +189,34 @@ app.get('/api/stream', (req, res) => {
 });
 
 app.post('/api/images', (req, res) => {
-  upload.single('image')(req, res, (err) => {
-    const uploadError = normalizeUploadError(err);
-    if (uploadError) return res.status(uploadError.status).json({ error: uploadError.message });
-    if (!req.file) return res.status(400).json({ error: 'No image file received' });
+  const rawImageUrl = req.body?.imageUrl ?? req.body?.url;
+  const imageUrlError = normalizeImageUrlError(rawImageUrl);
+  if (imageUrlError) return res.status(imageUrlError.status).json({ error: imageUrlError.message });
+  const imageUrl = normalizeImageUrl(rawImageUrl);
 
-    persistImage(req.file, req.body?.prompt)
-      .then((image) => res.status(201).json(image))
-      .catch(() => res.status(500).json({ error: 'Failed to persist image' }));
-  });
+  persistImage(imageUrl, req.body?.prompt)
+    .then((image) => res.status(201).json(image))
+    .catch(() => res.status(500).json({ error: 'Failed to persist image' }));
 });
 
 app.post('/api/images/script', (req, res) => {
-  upload.single('image')(req, res, (err) => {
-    const uploadError = normalizeUploadError(err);
-    if (uploadError) {
-      return res.status(uploadError.status).json({
-        ok: false,
-        error: { code: uploadError.code, message: uploadError.message }
-      });
-    }
+  const rawImageUrl = req.body?.imageUrl ?? req.body?.url;
+  const imageUrlError = normalizeImageUrlError(rawImageUrl);
+  if (imageUrlError) {
+    return res.status(imageUrlError.status).json({
+      ok: false,
+      error: { code: imageUrlError.code, message: imageUrlError.message }
+    });
+  }
 
-    if (!req.file) {
-      return res.status(400).json({
-        ok: false,
-        error: { code: 'NO_IMAGE_FILE', message: 'No image file received' }
-      });
-    }
+  const imageUrl = normalizeImageUrl(rawImageUrl);
 
-    return persistImage(req.file, req.body?.prompt)
-      .then((image) => res.status(201).json({ ok: true, data: image }))
-      .catch(() => res.status(500).json({
-        ok: false,
-        error: { code: 'PERSIST_FAILED', message: 'Failed to persist image' }
-      }));
-  });
+  return persistImage(imageUrl, req.body?.prompt)
+    .then((image) => res.status(201).json({ ok: true, data: image }))
+    .catch(() => res.status(500).json({
+      ok: false,
+      error: { code: 'PERSIST_FAILED', message: 'Failed to persist image' }
+    }));
 });
 
 app.patch('/api/images/:id/position', (req, res) => {
@@ -245,8 +236,8 @@ app.patch('/api/images/:id/position', (req, res) => {
     .catch(() => res.status(500).json({ error: 'Failed to persist image position' }));
 });
 
-// Serve the latest pinned image as a raw image file. Callers can request
-// metadata with `?metadata=1` while preserving the image response by default.
+// Serve the latest pinned image by redirecting to its source URL. Callers can
+// request metadata with `?metadata=1` while preserving the record by default.
 app.get('/api/images/latest', (req, res) => {
   const items = loadBoard();
   if (!items || items.length === 0) {
@@ -254,26 +245,13 @@ app.get('/api/images/latest', (req, res) => {
   }
 
   const latest = items[items.length - 1];
-  const filename = latest?.url ? path.basename(latest.url) : null;
-  if (!filename) return res.status(404).json({ error: 'Latest image not found' });
-
-  const filePath = path.join(uploadsDir, filename);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Image file not found on disk' });
+  if (!latest?.url) return res.status(404).json({ error: 'Latest image not found' });
 
   if (req.query.metadata === '1' || req.query.metadata === 'true') {
     return res.json({ ...latest, prompt: latest.prompt ?? null });
   }
 
-  const promptHeader = promptToHeaderValue(latest.prompt);
-  if (promptHeader) {
-    res.setHeader('X-Image-Prompt', promptHeader);
-  }
-  res.setHeader('X-Image-Id', latest.id);
-  if (latest.originalName) {
-    res.setHeader('X-Image-Original-Name', latest.originalName);
-  }
-
-  return res.sendFile(filePath);
+  return res.redirect(302, latest.url);
 });
 
 app.use((_req, res) => {

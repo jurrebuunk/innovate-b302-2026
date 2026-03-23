@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
+const { createServer } = require('node:http');
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,7 +26,20 @@ function startServer(port) {
   });
 }
 
-test('POST /api/images rejects non-image uploads', async () => {
+async function startImageHost(port, responseBody = 'fake-bytes', contentType = 'image/png') {
+  const server = createServer((_req, res) => {
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': 'no-cache'
+    });
+    res.end(responseBody);
+  });
+
+  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+  return server;
+}
+
+test('POST /api/images rejects invalid image URLs', async () => {
   const port = 4310;
   const baseUrl = `http://127.0.0.1:${port}`;
   const server = startServer(port);
@@ -33,23 +47,21 @@ test('POST /api/images rejects non-image uploads', async () => {
   try {
     await waitForServer(baseUrl);
 
-    const form = new FormData();
-    form.append('image', new Blob(['not an image'], { type: 'text/plain' }), 'not-image.txt');
-
     const res = await fetch(`${baseUrl}/api/images`, {
       method: 'POST',
-      body: form
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl: 'ftp://example.com/not-allowed.png' })
     });
 
     const body = await res.json();
     assert.equal(res.status, 400);
-    assert.equal(body.error, 'Only image files are allowed');
+    assert.equal(body.error, 'Image URL must be an absolute http or https URL');
   } finally {
     server.kill('SIGTERM');
   }
 });
 
-test('POST /api/images/script returns stable error envelope on invalid upload', async () => {
+test('POST /api/images/script returns stable error envelope on invalid image URL', async () => {
   const port = 4311;
   const baseUrl = `http://127.0.0.1:${port}`;
   const server = startServer(port);
@@ -57,28 +69,28 @@ test('POST /api/images/script returns stable error envelope on invalid upload', 
   try {
     await waitForServer(baseUrl);
 
-    const form = new FormData();
-    form.append('image', new Blob(['not an image'], { type: 'text/plain' }), 'not-image.txt');
-
     const res = await fetch(`${baseUrl}/api/images/script`, {
       method: 'POST',
-      body: form
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl: 'not-a-url' })
     });
 
     const body = await res.json();
     assert.equal(res.status, 400);
     assert.equal(body.ok, false);
-    assert.equal(body.error.code, 'ONLY_IMAGES_ALLOWED');
-    assert.equal(body.error.message, 'Only image files are allowed');
+    assert.equal(body.error.code, 'INVALID_IMAGE_URL');
+    assert.equal(body.error.message, 'Image URL must be an absolute http or https URL');
   } finally {
     server.kill('SIGTERM');
   }
 });
 
-test('SSE stream emits pin-created after successful script upload', async () => {
+test('SSE stream emits pin-created after successful URL pin', async () => {
   const port = 4312;
   const baseUrl = `http://127.0.0.1:${port}`;
   const server = startServer(port);
+  const imageHostPort = 5312;
+  const imageHost = await startImageHost(imageHostPort);
 
   try {
     await waitForServer(baseUrl);
@@ -101,12 +113,12 @@ test('SSE stream emits pin-created after successful script upload', async () => 
       return false;
     };
 
-    const form = new FormData();
-    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'ok.png');
+    const imageUrl = `http://127.0.0.1:${imageHostPort}/ok.png`;
 
     const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
       method: 'POST',
-      body: form
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl })
     });
     const uploadBody = await uploadRes.json();
     assert.equal(uploadRes.status, 201);
@@ -118,6 +130,7 @@ test('SSE stream emits pin-created after successful script upload', async () => 
     assert.match(raw, /"id"/);
   } finally {
     server.kill('SIGTERM');
+    imageHost.close();
   }
 });
 
@@ -126,16 +139,18 @@ test('PATCH /api/images/:id/position persists new coordinates', async () => {
   const port = 4313;
   const baseUrl = `http://127.0.0.1:${port}`;
   const server = startServer(port);
+  const imageHostPort = 5313;
+  const imageHost = await startImageHost(imageHostPort);
 
   try {
     await waitForServer(baseUrl);
 
-    const form = new FormData();
-    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'drag-me.png');
+    const imageUrl = `http://127.0.0.1:${imageHostPort}/drag-me.png`;
 
     const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
       method: 'POST',
-      body: form
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl })
     });
     const uploadBody = await uploadRes.json();
     assert.equal(uploadRes.status, 201);
@@ -158,44 +173,45 @@ test('PATCH /api/images/:id/position persists new coordinates', async () => {
     assert.equal(updated.y, -222);
   } finally {
     server.kill('SIGTERM');
+    imageHost.close();
   }
 });
 
-test('POST /api/images stores prompt alongside the uploaded image', async () => {
+test('POST /api/images stores prompt alongside the external image URL', async () => {
   const port = 4314;
   const baseUrl = `http://127.0.0.1:${port}`;
   const server = startServer(port);
+  const imageHostPort = 5314;
+  const imageHost = await startImageHost(imageHostPort);
 
   try {
     await waitForServer(baseUrl);
 
+    const imageUrl = `http://127.0.0.1:${imageHostPort}/prompted.png`;
     const prompt = 'a neon-lit skyline at dusk';
-    const form = new FormData();
-    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'prompted.png');
-    form.append('prompt', prompt);
-
     const uploadRes = await fetch(`${baseUrl}/api/images`, {
       method: 'POST',
-      body: form
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl, prompt })
     });
     const uploadBody = await uploadRes.json();
 
     assert.equal(uploadRes.status, 201);
     assert.equal(uploadBody.prompt, prompt);
 
-    const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`);
-    assert.equal(rawLatestRes.status, 200);
-    assert.equal(rawLatestRes.headers.get('x-image-prompt'), prompt);
-    assert.match(rawLatestRes.headers.get('content-type') || '', /^image\//);
+    const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`, { redirect: 'manual' });
+    assert.equal(rawLatestRes.status, 302);
+    assert.equal(rawLatestRes.headers.get('location'), imageUrl);
 
     const latestRes = await fetch(`${baseUrl}/api/images/latest?metadata=1`);
     const latestBody = await latestRes.json();
 
     assert.equal(latestRes.status, 200);
     assert.equal(latestBody.prompt, prompt);
-    assert.equal(latestBody.originalName, 'prompted.png');
+    assert.equal(latestBody.url, imageUrl);
   } finally {
     server.kill('SIGTERM');
+    imageHost.close();
   }
 });
 
@@ -203,36 +219,37 @@ test('POST /api/images parses JSON prompt text and stores structured data', asyn
   const port = 4316;
   const baseUrl = `http://127.0.0.1:${port}`;
   const server = startServer(port);
+  const imageHostPort = 5316;
+  const imageHost = await startImageHost(imageHostPort);
 
   try {
     await waitForServer(baseUrl);
 
+    const imageUrl = `http://127.0.0.1:${imageHostPort}/json-prompted.png`;
     const prompt = { mood: 'calm', style: 'minimal', tags: ['blue', 'soft'] };
-    const form = new FormData();
-    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'json-prompted.png');
-    form.append('prompt', JSON.stringify(prompt));
-
     const uploadRes = await fetch(`${baseUrl}/api/images`, {
       method: 'POST',
-      body: form
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl, prompt: JSON.stringify(prompt) })
     });
     const uploadBody = await uploadRes.json();
 
     assert.equal(uploadRes.status, 201);
     assert.deepEqual(uploadBody.prompt, prompt);
 
-    const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`);
-    assert.equal(rawLatestRes.status, 200);
-    assert.equal(rawLatestRes.headers.get('x-image-prompt'), JSON.stringify(prompt));
+    const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`, { redirect: 'manual' });
+    assert.equal(rawLatestRes.status, 302);
+    assert.equal(rawLatestRes.headers.get('location'), imageUrl);
 
     const latestRes = await fetch(`${baseUrl}/api/images/latest?metadata=1`);
     const latestBody = await latestRes.json();
 
     assert.equal(latestRes.status, 200);
     assert.deepEqual(latestBody.prompt, prompt);
-    assert.equal(latestBody.originalName, 'json-prompted.png');
+    assert.equal(latestBody.url, imageUrl);
   } finally {
     server.kill('SIGTERM');
+    imageHost.close();
   }
 });
 
@@ -240,18 +257,18 @@ test('POST /api/images/script stores prompt and exposes it in the response data'
   const port = 4315;
   const baseUrl = `http://127.0.0.1:${port}`;
   const server = startServer(port);
+  const imageHostPort = 5315;
+  const imageHost = await startImageHost(imageHostPort);
 
   try {
     await waitForServer(baseUrl);
 
+    const imageUrl = `http://127.0.0.1:${imageHostPort}/script-prompted.png`;
     const prompt = 'a minimal red robot on a white background';
-    const form = new FormData();
-    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'script-prompted.png');
-    form.append('prompt', prompt);
-
     const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
       method: 'POST',
-      body: form
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl, prompt })
     });
     const uploadBody = await uploadRes.json();
 
@@ -260,5 +277,6 @@ test('POST /api/images/script stores prompt and exposes it in the response data'
     assert.equal(uploadBody.data.prompt, prompt);
   } finally {
     server.kill('SIGTERM');
+    imageHost.close();
   }
 });

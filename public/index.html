@@ -9,15 +9,10 @@
 <body>
   <button id="settingsButton" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settingsMenu" aria-label="Open settings" title="Settings">⚙️</button>
   <div id="settingsMenu" role="menu" aria-labelledby="settingsButton" hidden>
-    <button id="menuUpload" type="button" role="menuitem">Upload image</button>
+    <button id="menuUpload" type="button" role="menuitem">Add image URL</button>
     <button id="modeToggle" type="button" role="menuitem">Switch to single mode</button>
     <button id="themeToggle" type="button" role="menuitem">Switch to light mode</button>
   </div>
-
-  <form id="uploadForm" hidden>
-    <input type="file" id="imageInput" name="image" accept="image/*" required />
-    <button type="submit">Pin</button>
-  </form>
 
   <main id="boardContainer">
     <div id="board"></div>
