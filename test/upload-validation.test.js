@@ -160,3 +160,105 @@ test('PATCH /api/images/:id/position persists new coordinates', async () => {
     server.kill('SIGTERM');
   }
 });
+
+test('POST /api/images stores prompt alongside the uploaded image', async () => {
+  const port = 4314;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const server = startServer(port);
+
+  try {
+    await waitForServer(baseUrl);
+
+    const prompt = 'a neon-lit skyline at dusk';
+    const form = new FormData();
+    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'prompted.png');
+    form.append('prompt', prompt);
+
+    const uploadRes = await fetch(`${baseUrl}/api/images`, {
+      method: 'POST',
+      body: form
+    });
+    const uploadBody = await uploadRes.json();
+
+    assert.equal(uploadRes.status, 201);
+    assert.equal(uploadBody.prompt, prompt);
+
+    const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`);
+    assert.equal(rawLatestRes.status, 200);
+    assert.equal(rawLatestRes.headers.get('x-image-prompt'), prompt);
+    assert.match(rawLatestRes.headers.get('content-type') || '', /^image\//);
+
+    const latestRes = await fetch(`${baseUrl}/api/images/latest?metadata=1`);
+    const latestBody = await latestRes.json();
+
+    assert.equal(latestRes.status, 200);
+    assert.equal(latestBody.prompt, prompt);
+    assert.equal(latestBody.originalName, 'prompted.png');
+  } finally {
+    server.kill('SIGTERM');
+  }
+});
+
+test('POST /api/images parses JSON prompt text and stores structured data', async () => {
+  const port = 4316;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const server = startServer(port);
+
+  try {
+    await waitForServer(baseUrl);
+
+    const prompt = { mood: 'calm', style: 'minimal', tags: ['blue', 'soft'] };
+    const form = new FormData();
+    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'json-prompted.png');
+    form.append('prompt', JSON.stringify(prompt));
+
+    const uploadRes = await fetch(`${baseUrl}/api/images`, {
+      method: 'POST',
+      body: form
+    });
+    const uploadBody = await uploadRes.json();
+
+    assert.equal(uploadRes.status, 201);
+    assert.deepEqual(uploadBody.prompt, prompt);
+
+    const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`);
+    assert.equal(rawLatestRes.status, 200);
+    assert.equal(rawLatestRes.headers.get('x-image-prompt'), JSON.stringify(prompt));
+
+    const latestRes = await fetch(`${baseUrl}/api/images/latest?metadata=1`);
+    const latestBody = await latestRes.json();
+
+    assert.equal(latestRes.status, 200);
+    assert.deepEqual(latestBody.prompt, prompt);
+    assert.equal(latestBody.originalName, 'json-prompted.png');
+  } finally {
+    server.kill('SIGTERM');
+  }
+});
+
+test('POST /api/images/script stores prompt and exposes it in the response data', async () => {
+  const port = 4315;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const server = startServer(port);
+
+  try {
+    await waitForServer(baseUrl);
+
+    const prompt = 'a minimal red robot on a white background';
+    const form = new FormData();
+    form.append('image', new Blob(['fake-bytes'], { type: 'image/png' }), 'script-prompted.png');
+    form.append('prompt', prompt);
+
+    const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
+      method: 'POST',
+      body: form
+    });
+    const uploadBody = await uploadRes.json();
+
+    assert.equal(uploadRes.status, 201);
+    assert.equal(uploadBody.ok, true);
+    assert.equal(uploadBody.data.prompt, prompt);
+  } finally {
+    server.kill('SIGTERM');
+  }
+});

@@ -6,6 +6,7 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
@@ -88,7 +89,33 @@ function normalizeUploadError(err) {
   return { status: 400, code: 'INVALID_UPLOAD', message: 'Invalid upload payload' };
 }
 
-function createImageFromFile(file) {
+function normalizePrompt(prompt) {
+  if (prompt == null) return null;
+
+  if (typeof prompt === 'string') {
+    const trimmed = prompt.trim();
+    if (trimmed.length === 0) return null;
+
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        return trimmed;
+      }
+    }
+
+    return trimmed;
+  }
+
+  return prompt;
+}
+
+function promptToHeaderValue(prompt) {
+  if (prompt == null) return null;
+  return typeof prompt === 'string' ? prompt : JSON.stringify(prompt);
+}
+
+function createImageFromFile(file, prompt) {
   const pos = randomPos();
   return {
     id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
@@ -98,7 +125,8 @@ function createImageFromFile(file) {
     rotation: Math.round((Math.random() * 16 - 8) * 10) / 10,
     scale: Math.round((0.75 + Math.random() * 0.7) * 100) / 100,
     createdAt: new Date().toISOString(),
-    originalName: file.originalname
+    originalName: file.originalname,
+    prompt: normalizePrompt(prompt)
   };
 }
 
@@ -110,10 +138,10 @@ function enqueuePersist(task) {
   return run;
 }
 
-function persistImage(file) {
+function persistImage(file, prompt) {
   return enqueuePersist(async () => {
     const items = loadBoard();
-    const image = createImageFromFile(file);
+    const image = createImageFromFile(file, prompt);
     items.push(image);
     saveBoard(items);
     broadcast('pin-created', image);
@@ -168,7 +196,7 @@ app.post('/api/images', (req, res) => {
     if (uploadError) return res.status(uploadError.status).json({ error: uploadError.message });
     if (!req.file) return res.status(400).json({ error: 'No image file received' });
 
-    persistImage(req.file)
+    persistImage(req.file, req.body?.prompt)
       .then((image) => res.status(201).json(image))
       .catch(() => res.status(500).json({ error: 'Failed to persist image' }));
   });
@@ -191,7 +219,7 @@ app.post('/api/images/script', (req, res) => {
       });
     }
 
-    return persistImage(req.file)
+    return persistImage(req.file, req.body?.prompt)
       .then((image) => res.status(201).json({ ok: true, data: image }))
       .catch(() => res.status(500).json({
         ok: false,
@@ -217,10 +245,42 @@ app.patch('/api/images/:id/position', (req, res) => {
     .catch(() => res.status(500).json({ error: 'Failed to persist image position' }));
 });
 
+// Serve the latest pinned image as a raw image file. Callers can request
+// metadata with `?metadata=1` while preserving the image response by default.
+app.get('/api/images/latest', (req, res) => {
+  const items = loadBoard();
+  if (!items || items.length === 0) {
+    return res.status(404).json({ error: 'No images found' });
+  }
+
+  const latest = items[items.length - 1];
+  const filename = latest?.url ? path.basename(latest.url) : null;
+  if (!filename) return res.status(404).json({ error: 'Latest image not found' });
+
+  const filePath = path.join(uploadsDir, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Image file not found on disk' });
+
+  if (req.query.metadata === '1' || req.query.metadata === 'true') {
+    return res.json({ ...latest, prompt: latest.prompt ?? null });
+  }
+
+  const promptHeader = promptToHeaderValue(latest.prompt);
+  if (promptHeader) {
+    res.setHeader('X-Image-Prompt', promptHeader);
+  }
+  res.setHeader('X-Image-Id', latest.id);
+  if (latest.originalName) {
+    res.setHeader('X-Image-Original-Name', latest.originalName);
+  }
+
+  return res.sendFile(filePath);
+});
+
 app.use((_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Pinboard running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  const baseUrl = HOST === '0.0.0.0' ? `http://localhost:${PORT}` : `http://${HOST}:${PORT}`;
+  console.log(`Pinboard running on ${baseUrl} (bound to ${HOST}:${PORT})`);
 });

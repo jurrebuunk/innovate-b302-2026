@@ -13,19 +13,30 @@ A web app that behaves like a giant infinite pinboard.
 npm install
 npm start
 ```
-Then open `http://localhost:3000`.
+The server binds to `0.0.0.0` by default, so it is reachable from your LAN.
+Open `http://localhost:3000` locally, or `http://<your-machine-ip>:3000` from another device on the same network.
 
 ## API
 ### `GET /api/images`
-Returns all pinned images.
+Returns all pinned images, including each stored `prompt` when present.
 
 ### `POST /api/images`
-`multipart/form-data` with field: `image`
+`multipart/form-data` with fields: `image`, optional `prompt`
+
+`prompt` can be plain text or JSON text. If it starts with `{` or `[`, the server attempts to parse and store it as JSON.
 
 Example:
 ```bash
 curl -X POST http://localhost:3000/api/images \
-  -F "image=@/path/to/file.jpg"
+  -F "image=@/path/to/file.jpg" \
+  -F "prompt=a clean product composition"
+```
+
+Structured prompt example:
+```bash
+curl -X POST http://localhost:3000/api/images \
+  -F "image=@/path/to/file.jpg" \
+  -F 'prompt={"mood":"calm","style":"minimal"}'
 ```
 
 Response example:
@@ -36,6 +47,14 @@ Response example:
   "x": 1342,
   "y": -823,
   "createdAt": "2026-03-13T15:00:00.000Z",
-  "originalName": "file.jpg"
+  "originalName": "file.jpg",
+  "prompt": {
+    "mood": "calm",
+    "style": "minimal"
+  }
 }
 ```
+
+### `GET /api/images/latest`
+Returns the latest image as raw bytes by default so it still works as an image URL.
+Add `?metadata=1` to return the stored JSON record, including `prompt`.
