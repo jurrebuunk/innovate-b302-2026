@@ -237,22 +237,22 @@ button:hover { background: #2563eb; }
 
 #timelineBlips {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 21px;
-  height: 10px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
+  left: 0;
+  right: 0;
+  bottom: 19px;
+  height: 12px;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .blip {
+  position: absolute;
+  top: 50%;
   width: 6px;
   height: 6px;
   border-radius: 999px;
   background: #5f6d86;
-  flex: 0 0 auto;
+  transform: translate(-50%, -50%);
 }
 
 .blip.active {
@@ -262,11 +262,11 @@ button:hover { background: #2563eb; }
 
 .timeline-playhead {
   position: absolute;
-  top: 4px;
-  bottom: 8px;
-  width: 2px;
+  top: 3px;
+  bottom: 7px;
+  width: 4px;
   background: #fbbf24;
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.25);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.3), 0 0 8px rgba(251, 191, 36, 0.22);
   transform: translateX(-50%);
   pointer-events: auto;
 }
@@ -277,16 +277,16 @@ button:hover { background: #2563eb; }
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 16px;
+  width: 20px;
   transform: translateX(-50%);
 }
 
 .timeline-playhead-tip {
   position: absolute;
-  top: -1px;
+  top: -2px;
   left: 50%;
-  width: 12px;
-  height: 8px;
+  width: 16px;
+  height: 10px;
   transform: translate(-50%, -100%);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
   background: #fbbf24;
