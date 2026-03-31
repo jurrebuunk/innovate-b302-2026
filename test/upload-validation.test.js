@@ -18,12 +18,33 @@ async function waitForServer(baseUrl, tries = 40) {
   throw new Error('Server did not start in time');
 }
 
-function startServer(port) {
+function startServer(port, extraEnv = {}) {
   return spawn('node', ['server.js'], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, ...extraEnv, PORT: String(port) },
     stdio: 'ignore'
   });
+}
+
+async function startWebhookServer(port) {
+  const requests = [];
+  const server = createServer((req, res) => {
+    const chunks = [];
+
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      requests.push({
+        headers: req.headers,
+        body: Buffer.concat(chunks).toString('latin1')
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+  return { server, requests };
 }
 
 async function startImageHost(port, responseBody = 'fake-bytes', contentType = 'image/png') {
@@ -278,5 +299,37 @@ test('POST /api/images/script stores prompt and exposes it in the response data'
   } finally {
     server.kill('SIGTERM');
     imageHost.close();
+  }
+});
+
+test('POST /api/webcam-trigger forwards captured image as multipart upload', async () => {
+  const port = 4317;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const webhookPort = 5317;
+  const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const { server: webhookServer, requests } = await startWebhookServer(webhookPort);
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
+
+  try {
+    await waitForServer(baseUrl);
+
+    const imageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Xn5cAAAAASUVORK5CYII=';
+    const res = await fetch(`${baseUrl}/api/webcam-trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl })
+    });
+
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].headers['content-type'], /multipart\/form-data/);
+    assert.match(requests[0].body, /name="file"/);
+    assert.match(requests[0].body, /filename="picture\.png"/);
+  } finally {
+    server.kill('SIGTERM');
+    webhookServer.close();
   }
 });

@@ -5,6 +5,8 @@ pkgs.mkShell {
     nodejs_22
     (python3.withPackages (ps: with ps; [
       requests
+      opencv4
+      numpy
     ]))
   ];
 }

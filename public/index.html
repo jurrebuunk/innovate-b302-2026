@@ -9,7 +9,7 @@
 <body>
   <button id="settingsButton" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="settingsMenu" aria-label="Open settings" title="Settings">⚙️</button>
   <div id="settingsMenu" role="menu" aria-labelledby="settingsButton" hidden>
-    <button id="menuUpload" type="button" role="menuitem">Add image URL</button>
+    <button id="menuTakePicture" type="button" role="menuitem">Take picture</button>
     <button id="modeToggle" type="button" role="menuitem">Switch to single mode</button>
     <button id="themeToggle" type="button" role="menuitem">Switch to light mode</button>
   </div>
@@ -23,9 +23,15 @@
   </main>
 
   <div id="imageModal" class="image-modal" role="dialog" aria-modal="true" aria-label="Pinned image preview" hidden>
-    <div class="image-modal__panel">
-      <button id="imageModalClose" type="button" class="image-modal__close" aria-label="Close image preview">✕</button>
+    <div id="imageModalPanel" class="image-modal__panel">
       <img id="imageModalImage" alt="Pinned image preview" />
+    </div>
+  </div>
+
+  <div id="captureModal" class="capture-modal" role="dialog" aria-modal="true" aria-label="Take picture" hidden>
+    <div class="capture-modal__panel">
+      <button id="captureModalClose" type="button" class="capture-modal__close" aria-label="Close camera">✕</button>
+      <iframe id="captureModalFrame" class="capture-modal__frame" title="Camera capture" loading="lazy" referrerpolicy="same-origin"></iframe>
     </div>
   </div>
 

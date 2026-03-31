@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+  <title>Webcam Capture</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="capture-page">
+  <main class="capture-stage" aria-label="Webcam preview">
+    <video id="captureVideo" autoplay playsinline muted></video>
+    <div class="capture-overlay" aria-hidden="true"></div>
+  </main>
+
+  <footer class="capture-footer">
+    <div id="captureStatus" class="capture-status">Starting camera…</div>
+    <button id="shutterButton" type="button" class="capture-shutter" aria-label="Take photo">●</button>
+  </footer>
+
+  <script src="/capture.js?v=20260331"></script>
+</body>
+</html>

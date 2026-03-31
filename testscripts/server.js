@@ -8,10 +8,11 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '12mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const boardFile = path.join(__dirname, 'board.json');
+const webcamWebhookUrl = process.env.WEBHOOK_URL || 'http://n8n.lan.buunk.org:5678/webhook-test/7c817235-db8e-49e8-b985-887fadce5c3f';
 
 function loadBoard() {
   if (!fs.existsSync(boardFile)) return [];
@@ -112,6 +113,32 @@ function normalizeImageUrlError(imageUrl) {
   }
 
   return null;
+}
+
+function normalizeDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string') return null;
+
+  const trimmed = dataUrl.trim();
+  if (trimmed.length === 0) return null;
+
+  const match = trimmed.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+  if (!match) return null;
+
+  const mimeType = match[1] || 'application/octet-stream';
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3] || '';
+
+  try {
+    const buffer = isBase64
+      ? Buffer.from(payload, 'base64')
+      : Buffer.from(decodeURIComponent(payload), 'utf8');
+
+    if (buffer.length === 0) return null;
+
+    return { mimeType, buffer };
+  } catch {
+    return null;
+  }
 }
 
 function createImageFromUrl(imageUrl, prompt) {
@@ -217,6 +244,54 @@ app.post('/api/images/script', (req, res) => {
       ok: false,
       error: { code: 'PERSIST_FAILED', message: 'Failed to persist image' }
     }));
+});
+
+app.post('/api/webcam-trigger', async (req, res) => {
+  const { imageDataUrl } = req.body || {};
+  const image = normalizeDataUrl(imageDataUrl);
+
+  if (!image) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: 'INVALID_IMAGE_DATA',
+        message: 'imageDataUrl must be a valid data URL'
+      }
+    });
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', new Blob([image.buffer], { type: image.mimeType }), 'picture.png');
+
+    const response = await fetch(webcamWebhookUrl, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      return res.status(502).json({
+        ok: false,
+        error: {
+          code: 'WEBHOOK_FAILED',
+          message: 'Failed to forward captured image',
+          status: response.status,
+          details: errorText.slice(0, 500)
+        }
+      });
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(502).json({
+      ok: false,
+      error: {
+        code: 'WEBHOOK_FAILED',
+        message: 'Failed to forward captured image'
+      }
+    });
+  }
 });
 
 app.patch('/api/images/:id/position', (req, res) => {

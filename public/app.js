@@ -12,18 +12,37 @@ const timelineStepForward = document.getElementById('timelineStepForward');
 const timelineToEnd = document.getElementById('timelineToEnd');
 const settingsButton = document.getElementById('settingsButton');
 const settingsMenu = document.getElementById('settingsMenu');
-const menuUpload = document.getElementById('menuUpload');
+const menuTakePicture = document.getElementById('menuTakePicture');
 const modeToggle = document.getElementById('modeToggle');
 const themeToggle = document.getElementById('themeToggle');
 const singleView = document.getElementById('singleView');
 const singleImage = document.getElementById('singleImage');
 const singleEmpty = document.getElementById('singleEmpty');
 const imageModal = document.getElementById('imageModal');
+const imageModalPanel = document.getElementById('imageModalPanel');
 const imageModalImage = document.getElementById('imageModalImage');
-const imageModalClose = document.getElementById('imageModalClose');
+const captureModal = document.getElementById('captureModal');
+const captureModalFrame = document.getElementById('captureModalFrame');
+const captureModalClose = document.getElementById('captureModalClose');
 
 const GRID_SIZE = 40;
+const BOARD_TEXTURE_SCALE_MULTIPLIER = 25;
 const historyUtils = window.PinboardHistory || {};
+const IMAGE_PLACEHOLDER = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#e2e8f0"/>
+        <stop offset="100%" stop-color="#cbd5e1"/>
+      </linearGradient>
+    </defs>
+    <rect width="640" height="640" fill="url(#bg)"/>
+    <rect x="80" y="80" width="480" height="480" rx="20" fill="#f8fafc" stroke="#94a3b8" stroke-width="12"/>
+    <path d="M170 430L275 315L360 400L435 325L510 430" fill="none" stroke="#64748b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="255" cy="235" r="38" fill="#94a3b8"/>
+    <text x="320" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" fill="#334155">Image unavailable</text>
+  </svg>`
+)}`;
 
 const state = {
   scale: 1,
@@ -53,7 +72,12 @@ const state = {
   theme: window.localStorage.getItem('pinboard-theme') || 'dark',
   modalPinId: null,
   pinDrag: null,
-  positionPersistTimers: new Map()
+  positionPersistTimers: new Map(),
+  suppressPinClickUntil: 0,
+  pinNodes: new Map(),
+  newPinIds: new Set(),
+  allowPinIntroAnimation: false,
+  nextPinZ: 1
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -77,8 +101,8 @@ function latestPinAtOrBeforeCutoff(items, visibleCount) {
 
 function syncBackgroundTransform() {
   boardContainer.style.backgroundPosition = `${state.x}px ${state.y}px`;
-  const scaledGrid = Math.max(4, GRID_SIZE * state.scale);
-  boardContainer.style.backgroundSize = `${scaledGrid}px ${scaledGrid}px`;
+  const scaledTexture = Math.max(40, GRID_SIZE * BOARD_TEXTURE_SCALE_MULTIPLIER * state.scale);
+  boardContainer.style.backgroundSize = `${scaledTexture}px ${scaledTexture}px`;
 }
 
 function applyTransform() {
@@ -100,6 +124,30 @@ function fallbackVariation(item) {
   const rotation = ((h % 161) / 10) - 8;
   const scale = 0.75 + ((h >> 8) % 71) / 100;
   return { rotation, scale };
+}
+
+function applyPinTransform(pin, sway = 0) {
+  const baseRotation = Number.parseFloat(pin.dataset.baseRotation || '0');
+  const baseScale = Number.parseFloat(pin.dataset.baseScale || '1');
+  pin.style.transform = `rotate(${baseRotation + sway}deg) scale(${baseScale})`;
+}
+
+function setImageSourceWithFallback(img, src, alt) {
+  if (!img) return;
+  const nextSrc = src || IMAGE_PLACEHOLDER;
+  img.dataset.fallback = nextSrc === IMAGE_PLACEHOLDER ? '1' : '0';
+  img.src = nextSrc;
+  img.alt = alt;
+}
+
+function attachImageFallback(img) {
+  if (!img || img.dataset.hasFallbackHandler === '1') return;
+  img.dataset.hasFallbackHandler = '1';
+  img.addEventListener('error', () => {
+    if (img.dataset.fallback === '1') return;
+    img.dataset.fallback = '1';
+    img.src = IMAGE_PLACEHOLDER;
+  });
 }
 
 function updateLocalPinPosition(id, x, y) {
@@ -139,6 +187,8 @@ function createPinNode(item) {
   const pin = document.createElement('div');
   pin.className = 'pin';
   pin.dataset.pinId = item.id;
+  if (!Number.isFinite(item.zOrder)) item.zOrder = ++state.nextPinZ;
+  pin.style.zIndex = String(item.zOrder);
   pin.style.left = `${item.x}px`;
   pin.style.top = `${item.y}px`;
   pin.style.touchAction = 'none';
@@ -146,14 +196,44 @@ function createPinNode(item) {
   const variation = fallbackVariation(item);
   const rotation = Number.isFinite(item.rotation) ? item.rotation : variation.rotation;
   const scale = Number.isFinite(item.scale) ? item.scale : variation.scale;
-  pin.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+  pin.dataset.baseRotation = String(rotation);
+  pin.dataset.baseScale = String(scale);
+  applyPinTransform(pin);
+
+  const content = document.createElement('div');
+  content.className = 'pin-content';
 
   const img = document.createElement('img');
-  img.src = item.url;
+  img.src = item.url || IMAGE_PLACEHOLDER;
   img.alt = item.originalName || 'Pinned image';
   img.loading = 'lazy';
+  img.decoding = 'async';
 
-  pin.appendChild(img);
+  img.addEventListener('error', () => {
+    if (img.dataset.fallback === '1') return;
+    img.dataset.fallback = '1';
+    img.src = IMAGE_PLACEHOLDER;
+    pin.classList.add('is-placeholder');
+  });
+
+  img.addEventListener('load', () => {
+    if (img.dataset.fallback === '1') {
+      pin.classList.add('is-placeholder');
+    } else {
+      pin.classList.remove('is-placeholder');
+    }
+  });
+
+  content.appendChild(img);
+  pin.appendChild(content);
+
+  if (state.newPinIds.has(item.id)) {
+    content.classList.add('pin-content--intro');
+    content.addEventListener('animationend', () => {
+      content.classList.remove('pin-content--intro');
+    }, { once: true });
+    state.newPinIds.delete(item.id);
+  }
 
   pin.addEventListener('pointerdown', (e) => {
     if (state.mode === 'single') return;
@@ -167,9 +247,31 @@ function createPinNode(item) {
     state.pinDrag = {
       pointerId: e.pointerId,
       id: item.id,
-      offsetX: e.clientX - Number.parseFloat(pin.style.left || '0'),
-      offsetY: e.clientY - Number.parseFloat(pin.style.top || '0')
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      lastClientX: e.clientX,
+      lastTimestamp: performance.now(),
+      velocityX: 0,
+      sway: 0,
+      moved: false,
+      offsetX: 0,
+      offsetY: 0
     };
+
+    const liftedZ = ++state.nextPinZ;
+    item.zOrder = liftedZ;
+    pin.style.zIndex = String(liftedZ);
+
+    pin.classList.add('is-dragging');
+
+    const rect = boardContainer.getBoundingClientRect();
+    const pointerX = e.clientX - rect.left;
+    const pointerY = e.clientY - rect.top;
+    const worldX = (pointerX - state.x) / state.scale;
+    const worldY = (pointerY - state.y) / state.scale;
+
+    state.pinDrag.offsetX = worldX - Number.parseFloat(pin.style.left || '0');
+    state.pinDrag.offsetY = worldY - Number.parseFloat(pin.style.top || '0');
 
     boardContainer.classList.add('dragging');
   });
@@ -179,10 +281,38 @@ function createPinNode(item) {
     e.preventDefault();
     e.stopPropagation();
 
-    const nextX = Math.round(e.clientX - state.pinDrag.offsetX);
-    const nextY = Math.round(e.clientY - state.pinDrag.offsetY);
+    const dx = Math.abs(e.clientX - state.pinDrag.startClientX);
+    const dy = Math.abs(e.clientY - state.pinDrag.startClientY);
+    if (dx > 4 || dy > 4) {
+      state.pinDrag.moved = true;
+    }
+
+    const now = performance.now();
+    const dt = Math.max(8, now - state.pinDrag.lastTimestamp);
+    const instantVelocityX = (e.clientX - state.pinDrag.lastClientX) / dt;
+    state.pinDrag.velocityX = (state.pinDrag.velocityX * 0.9) + (instantVelocityX * 0.1);
+    state.pinDrag.lastClientX = e.clientX;
+    state.pinDrag.lastTimestamp = now;
+
+    const rect = boardContainer.getBoundingClientRect();
+    const pointerX = e.clientX - rect.left;
+    const pointerY = e.clientY - rect.top;
+    const worldX = (pointerX - state.x) / state.scale;
+    const worldY = (pointerY - state.y) / state.scale;
+
+    const nextX = Math.round(worldX - state.pinDrag.offsetX);
+    const nextY = Math.round(worldY - state.pinDrag.offsetY);
     pin.style.left = `${nextX}px`;
     pin.style.top = `${nextY}px`;
+    const speedPxPerSec = Math.abs(state.pinDrag.velocityX) * 1000;
+    const minTiltSpeed = 120;
+    const maxTiltSpeed = 1800;
+    const speedProgress = Math.max(0, Math.min(1, (speedPxPerSec - minTiltSpeed) / (maxTiltSpeed - minTiltSpeed)));
+    const targetMagnitude = Math.pow(speedProgress, 0.9) * 20;
+    const targetSway = Math.sign(state.pinDrag.velocityX) * targetMagnitude;
+    state.pinDrag.sway = (state.pinDrag.sway * 0.7) + (targetSway * 0.3);
+    pin.style.transition = 'none';
+    applyPinTransform(pin, state.pinDrag.sway);
     updateLocalPinPosition(item.id, nextX, nextY);
   });
 
@@ -193,9 +323,21 @@ function createPinNode(item) {
 
     const finalX = Number.parseFloat(pin.style.left || '0');
     const finalY = Number.parseFloat(pin.style.top || '0');
+
+    if (state.pinDrag.moved) {
+      state.suppressPinClickUntil = performance.now() + 300;
+    }
+
     schedulePinPositionPersist(item.id, finalX, finalY);
 
+    pin.style.transition = 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)';
+    applyPinTransform(pin);
+    window.setTimeout(() => {
+      pin.style.transition = '';
+    }, 280);
+
     state.pinDrag = null;
+    pin.classList.remove('is-dragging');
     boardContainer.classList.remove('dragging');
   };
 
@@ -205,10 +347,54 @@ function createPinNode(item) {
   return pin;
 }
 
+function syncPinNode(pin, item) {
+  pin.style.left = `${item.x}px`;
+  pin.style.top = `${item.y}px`;
+  if (!Number.isFinite(item.zOrder)) item.zOrder = ++state.nextPinZ;
+  pin.style.zIndex = String(item.zOrder);
+
+  const variation = fallbackVariation(item);
+  const rotation = Number.isFinite(item.rotation) ? item.rotation : variation.rotation;
+  const scale = Number.isFinite(item.scale) ? item.scale : variation.scale;
+  pin.dataset.baseRotation = String(rotation);
+  pin.dataset.baseScale = String(scale);
+  applyPinTransform(pin);
+
+  const img = pin.querySelector('img');
+  if (img) {
+    const nextSrc = item.url || IMAGE_PLACEHOLDER;
+    if (img.getAttribute('src') !== nextSrc) {
+      img.dataset.fallback = nextSrc === IMAGE_PLACEHOLDER ? '1' : '0';
+      img.src = nextSrc;
+    }
+    img.alt = item.originalName || 'Pinned image';
+  }
+}
+
 function renderPins() {
-  board.textContent = '';
   const visible = state.allPins.slice(0, state.visibleCount);
-  visible.forEach((item) => board.appendChild(createPinNode(item)));
+  const visibleIds = new Set(visible.map((item) => item.id));
+
+  for (const [id, node] of state.pinNodes.entries()) {
+    if (visibleIds.has(id)) continue;
+    if (node.parentElement === board) board.removeChild(node);
+  }
+
+  for (let i = 0; i < visible.length; i++) {
+    const item = visible[i];
+    let pin = state.pinNodes.get(item.id);
+    if (!pin) {
+      pin = createPinNode(item);
+      state.pinNodes.set(item.id, pin);
+    } else {
+      syncPinNode(pin, item);
+    }
+
+    const currentNodeAtIndex = board.children[i] || null;
+    if (currentNodeAtIndex !== pin) {
+      board.insertBefore(pin, currentNodeAtIndex);
+    }
+  }
 }
 
 function renderSingleView() {
@@ -220,8 +406,7 @@ function renderSingleView() {
     return;
   }
 
-  singleImage.src = item.url;
-  singleImage.alt = item.originalName || 'Pinned image';
+  setImageSourceWithFallback(singleImage, item.url, item.originalName || 'Pinned image');
   singleImage.hidden = false;
   singleEmpty.hidden = true;
 }
@@ -235,6 +420,18 @@ function ensureTimelineBlips(total) {
   for (let i = 0; i < total; i++) {
     const blip = document.createElement('span');
     blip.className = 'blip';
+    const img = document.createElement('img');
+    img.className = 'blip-image';
+    img.alt = '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', () => {
+      if (img.dataset.fallback === '1') return;
+      img.dataset.fallback = '1';
+      img.src = IMAGE_PLACEHOLDER;
+    });
+    blip.appendChild(img);
     state.timelineBlipNodes.push(blip);
     timelineBlips.appendChild(blip);
   }
@@ -307,7 +504,15 @@ function renderTimeline() {
   renderTimelineRuler(total);
   ensureTimelineBlips(total);
   for (let i = 0; i < state.timelineBlipNodes.length; i++) {
-    state.timelineBlipNodes[i].classList.toggle('active', i < clampedVisible);
+    const node = state.timelineBlipNodes[i];
+    const img = node.firstElementChild;
+    const item = state.allPins[i];
+    const nextSrc = item?.url || IMAGE_PLACEHOLDER;
+    if (img && img.getAttribute('src') !== nextSrc) {
+      img.dataset.fallback = nextSrc === IMAGE_PLACEHOLDER ? '1' : '0';
+      img.setAttribute('src', nextSrc);
+    }
+    node.classList.toggle('active', i < clampedVisible);
   }
 
   updateTimelinePlayhead(clampedVisible, total);
@@ -337,12 +542,29 @@ function closeImageModal() {
   state.modalPinId = null;
   imageModalImage?.removeAttribute('src');
   imageModalImage?.removeAttribute('alt');
+  imageModalPanel?.style.removeProperty('--modal-tilt');
+}
+
+function closeCaptureModal() {
+  if (!captureModal || captureModal.hidden) return;
+  captureModal.hidden = true;
+  captureModalFrame?.removeAttribute('src');
+}
+
+function openCaptureModal() {
+  if (!captureModal) return;
+  const nonce = Date.now();
+  captureModalFrame?.setAttribute('src', `/capture.html?embedded=1&t=${nonce}`);
+  captureModal.hidden = false;
 }
 
 function openImageModal(item) {
   if (!item || !imageModal || !imageModalImage) return;
-  imageModalImage.src = item.url;
-  imageModalImage.alt = item.originalName || 'Pinned image preview';
+  const variation = fallbackVariation(item);
+  const baseRotation = Number.isFinite(item.rotation) ? item.rotation : variation.rotation;
+  const modalTilt = Math.max(-5, Math.min(5, baseRotation * 0.6));
+  imageModalPanel?.style.setProperty('--modal-tilt', `${modalTilt}deg`);
+  setImageSourceWithFallback(imageModalImage, item.url, item.originalName || 'Pinned image preview');
   imageModal.hidden = false;
   state.modalPinId = item.id || null;
 }
@@ -397,6 +619,8 @@ function setVisibleCount(nextCount) {
 function addPinIfNew(item) {
   if (!item || !item.id || state.knownPinIds.has(item.id)) return false;
   state.knownPinIds.add(item.id);
+  if (!Number.isFinite(item.zOrder)) item.zOrder = ++state.nextPinZ;
+  if (state.allowPinIntroAnimation) state.newPinIds.add(item.id);
   const wasAtLatest = state.visibleCount === state.allPins.length;
   state.allPins.push(item);
   setVisibleCount(wasAtLatest ? state.allPins.length : state.visibleCount);
@@ -406,33 +630,15 @@ function addPinIfNew(item) {
 async function loadPins() {
   const res = await fetch('/api/images');
   const items = await res.json();
+  let maxZ = state.nextPinZ;
+  for (let i = 0; i < items.length; i++) {
+    if (!Number.isFinite(items[i].zOrder)) items[i].zOrder = i + 1;
+    if (items[i].zOrder > maxZ) maxZ = items[i].zOrder;
+  }
+  state.nextPinZ = maxZ;
   state.allPins = [...items];
   state.knownPinIds = new Set(items.map((item) => item.id));
   setVisibleCount(state.allPins.length);
-}
-
-async function addImageFromUrl() {
-  const imageUrl = window.prompt('Enter an image URL to pin');
-  if (!imageUrl) return;
-
-  const promptText = window.prompt('Optional prompt or notes for this image')?.trim();
-  const body = { imageUrl };
-  if (promptText) body.prompt = promptText;
-
-  const res = await fetch('/api/images', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    alert(payload?.error || 'Pin failed');
-    return;
-  }
-
-  const item = await res.json();
-  addPinIfNew(item);
 }
 
 function connectRealtime() {
@@ -644,9 +850,9 @@ themeToggle.addEventListener('click', () => {
   closeMenu();
 });
 
-menuUpload.addEventListener('click', async () => {
+menuTakePicture?.addEventListener('click', () => {
   closeMenu();
-  await addImageFromUrl();
+  openCaptureModal();
 });
 
 settingsButton.addEventListener('click', (e) => {
@@ -656,6 +862,7 @@ settingsButton.addEventListener('click', (e) => {
 
 board.addEventListener('click', (e) => {
   if (state.mode !== 'board') return;
+  if (performance.now() < state.suppressPinClickUntil) return;
   const pin = e.target.closest('.pin');
   if (!pin) return;
   const pinId = pin.dataset.pinId;
@@ -664,13 +871,18 @@ board.addEventListener('click', (e) => {
   openImageModal(item);
 });
 
-imageModalClose?.addEventListener('click', () => {
-  closeImageModal();
-});
-
 imageModal?.addEventListener('click', (e) => {
   if (e.target !== imageModal) return;
   closeImageModal();
+});
+
+captureModalClose?.addEventListener('click', () => {
+  closeCaptureModal();
+});
+
+captureModal?.addEventListener('click', (e) => {
+  if (e.target !== captureModal) return;
+  closeCaptureModal();
 });
 
 document.addEventListener('click', (e) => {
@@ -691,6 +903,12 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !imageModal?.hidden) {
     e.preventDefault();
     closeImageModal();
+    return;
+  }
+
+  if (e.key === 'Escape' && !captureModal?.hidden) {
+    e.preventDefault();
+    closeCaptureModal();
     return;
   }
 
@@ -725,14 +943,18 @@ window.addEventListener('resize', () => {
 });
 
 async function initialize() {
+  attachImageFallback(imageModalImage);
+  attachImageFallback(singleImage);
   applyTransform();
   applyModeUi();
   applyThemeUi();
   closeMenu();
   closeImageModal();
+  closeCaptureModal();
   try {
     await loadPins();
   } finally {
+    state.allowPinIntroAnimation = true;
     connectRealtime();
   }
 }
