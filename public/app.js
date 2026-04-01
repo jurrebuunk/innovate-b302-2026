@@ -78,7 +78,8 @@ const state = {
   pinNodes: new Map(),
   newPinIds: new Set(),
   allowPinIntroAnimation: false,
-  nextPinZ: 1
+  nextPinZ: 1,
+  syncTimer: null
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -158,6 +159,78 @@ function updateLocalPinPosition(id, x, y) {
   item.y = y;
 }
 
+function updateLocalPinData(nextItem) {
+  if (!nextItem || !nextItem.id) return;
+  const index = state.allPins.findIndex((entry) => entry.id === nextItem.id);
+  if (index === -1) return;
+  state.allPins[index] = { ...state.allPins[index], ...nextItem };
+}
+
+function getLocalPinById(id) {
+  return state.allPins.find((entry) => entry.id === id) || null;
+}
+
+function mergePinsFromServer(items) {
+  if (!Array.isArray(items)) return;
+
+  let changed = false;
+  let maxZ = state.nextPinZ;
+
+  for (let i = 0; i < items.length; i++) {
+    const incoming = items[i];
+    if (!incoming?.id) continue;
+    if (!Number.isFinite(incoming.zOrder)) incoming.zOrder = i + 1;
+    if (incoming.zOrder > maxZ) maxZ = incoming.zOrder;
+
+    const local = getLocalPinById(incoming.id);
+    if (!local) {
+      addPinIfNew(incoming);
+      changed = true;
+      continue;
+    }
+
+    const differs = (
+      local.url !== incoming.url ||
+      local.mediaType !== incoming.mediaType ||
+      local.status !== incoming.status ||
+      local.x !== incoming.x ||
+      local.y !== incoming.y ||
+      local.rotation !== incoming.rotation ||
+      local.scale !== incoming.scale ||
+      local.zOrder !== incoming.zOrder
+    );
+
+    if (differs) {
+      updateLocalPinData(incoming);
+      changed = true;
+    }
+  }
+
+  state.nextPinZ = maxZ;
+
+  if (!changed) return;
+  if (state.mode === 'board') {
+    renderPins();
+  } else {
+    renderSingleView();
+  }
+  renderTimeline();
+}
+
+async function syncPinsFromServer() {
+  try {
+    const res = await fetch('/api/images');
+    if (!res.ok) return;
+    const items = await res.json();
+    mergePinsFromServer(items);
+  } catch {}
+}
+
+function startPinSyncLoop() {
+  if (state.syncTimer) window.clearInterval(state.syncTimer);
+  state.syncTimer = window.setInterval(syncPinsFromServer, 1500);
+}
+
 async function persistPinPosition(id, x, y) {
   try {
     const res = await fetch(`/api/images/${encodeURIComponent(id)}/position`, {
@@ -204,35 +277,55 @@ function createPinNode(item) {
   const content = document.createElement('div');
   content.className = 'pin-content';
 
-  const img = document.createElement('img');
-  img.src = item.url || IMAGE_PLACEHOLDER;
-  img.alt = item.originalName || 'Pinned image';
-  img.loading = 'lazy';
-  img.decoding = 'async';
+  if (item.mediaType === 'video') {
+    const media = document.createElement('video');
+    media.src = item.url || '/assets/video/ai-loading.mp4';
+    media.autoplay = true;
+    media.muted = true;
+    media.loop = true;
+    media.playsInline = true;
+    media.setAttribute('aria-label', 'Generating image');
+    content.appendChild(media);
+  } else {
+    const img = document.createElement('img');
+    img.src = item.url || IMAGE_PLACEHOLDER;
+    img.alt = item.originalName || 'Pinned image';
+    img.loading = 'lazy';
+    img.decoding = 'async';
 
-  img.addEventListener('error', () => {
-    if (img.dataset.fallback === '1') return;
-    img.dataset.fallback = '1';
-    img.src = IMAGE_PLACEHOLDER;
-    pin.classList.add('is-placeholder');
-  });
-
-  img.addEventListener('load', () => {
-    if (img.dataset.fallback === '1') {
+    img.addEventListener('error', () => {
+      if (img.dataset.fallback === '1') return;
+      img.dataset.fallback = '1';
+      img.src = IMAGE_PLACEHOLDER;
       pin.classList.add('is-placeholder');
-    } else {
-      pin.classList.remove('is-placeholder');
-    }
-  });
+    });
 
-  content.appendChild(img);
+    img.addEventListener('load', () => {
+      if (img.dataset.fallback === '1') {
+        pin.classList.add('is-placeholder');
+      } else {
+        pin.classList.remove('is-placeholder');
+      }
+    });
+
+    content.appendChild(img);
+  }
   pin.appendChild(content);
 
   if (state.newPinIds.has(item.id)) {
-    content.classList.add('pin-content--intro');
-    content.addEventListener('animationend', () => {
-      content.classList.remove('pin-content--intro');
-    }, { once: true });
+    if (item.mediaType === 'video' || item.status === 'generating') {
+      content.classList.add('pin-content--generating-pop');
+      const clearGeneratingPop = () => {
+        content.classList.remove('pin-content--generating-pop');
+      };
+      content.addEventListener('animationend', clearGeneratingPop, { once: true });
+      content.addEventListener('animationcancel', clearGeneratingPop, { once: true });
+    } else {
+      content.classList.add('pin-content--intro');
+      content.addEventListener('animationend', () => {
+        content.classList.remove('pin-content--intro');
+      }, { once: true });
+    }
     state.newPinIds.delete(item.id);
   }
 
@@ -360,6 +453,50 @@ function syncPinNode(pin, item) {
   pin.dataset.baseRotation = String(rotation);
   pin.dataset.baseScale = String(scale);
   applyPinTransform(pin);
+
+  const currentImg = pin.querySelector('img');
+  const currentVideo = pin.querySelector('video');
+
+  if (item.mediaType === 'video') {
+    if (!currentVideo) {
+      if (currentImg) currentImg.remove();
+      const media = document.createElement('video');
+      media.autoplay = true;
+      media.muted = true;
+      media.loop = true;
+      media.playsInline = true;
+      media.setAttribute('aria-label', 'Generating image');
+      pin.querySelector('.pin-content')?.appendChild(media);
+    }
+    const video = pin.querySelector('video');
+    const nextSrc = item.url || '/assets/video/ai-loading.mp4';
+    if (video && video.getAttribute('src') !== nextSrc) {
+      video.setAttribute('src', nextSrc);
+      video.play().catch(() => {});
+    }
+    return;
+  }
+
+  if (!currentImg) {
+    if (currentVideo) currentVideo.remove();
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.addEventListener('error', () => {
+      if (img.dataset.fallback === '1') return;
+      img.dataset.fallback = '1';
+      img.src = IMAGE_PLACEHOLDER;
+      pin.classList.add('is-placeholder');
+    });
+    img.addEventListener('load', () => {
+      if (img.dataset.fallback === '1') {
+        pin.classList.add('is-placeholder');
+      } else {
+        pin.classList.remove('is-placeholder');
+      }
+    });
+    pin.querySelector('.pin-content')?.appendChild(img);
+  }
 
   const img = pin.querySelector('img');
   if (img) {
@@ -656,8 +793,13 @@ function connectRealtime() {
   stream.addEventListener('pin-updated', (event) => {
     try {
       const item = JSON.parse(event.data);
-      updateLocalPinPosition(item.id, item.x, item.y);
-      if (state.mode === 'board') renderPins();
+      updateLocalPinData(item);
+      if (state.mode === 'board') {
+        renderPins();
+      } else {
+        renderSingleView();
+      }
+      renderTimeline();
     } catch {}
   });
 
@@ -962,6 +1104,7 @@ async function initialize() {
   } finally {
     state.allowPinIntroAnimation = true;
     connectRealtime();
+    startPinSyncLoop();
   }
 }
 

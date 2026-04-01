@@ -47,6 +47,25 @@ async function startWebhookServer(port) {
   return { server, requests };
 }
 
+async function startFailingWebhookServer(port) {
+  const requests = [];
+  const server = createServer((req, res) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      requests.push({
+        headers: req.headers,
+        body: Buffer.concat(chunks).toString('latin1')
+      });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false }));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+  return { server, requests };
+}
+
 async function startImageHost(port, responseBody = 'fake-bytes', contentType = 'image/png') {
   const server = createServer((_req, res) => {
     res.writeHead(200, {
@@ -63,15 +82,35 @@ async function startImageHost(port, responseBody = 'fake-bytes', contentType = '
 test('POST /api/images rejects invalid image URLs', async () => {
   const port = 4310;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const server = startServer(port);
+  const webhookPort = 5310;
+  const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const { server: failingWebhook } = await startFailingWebhookServer(webhookPort);
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
 
   try {
     await waitForServer(baseUrl);
 
-    const res = await fetch(`${baseUrl}/api/images`, {
+    const missingIdRes = await fetch(`${baseUrl}/api/images`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageUrl: 'ftp://example.com/not-allowed.png' })
+    });
+
+    const missingIdBody = await missingIdRes.json();
+    assert.equal(missingIdRes.status, 400);
+    assert.equal(missingIdBody.error, 'id is required');
+
+    const createRes = await fetch(`${baseUrl}/api/webcam-trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Xn5cAAAAASUVORK5CYII=', job_id: 'job-invalid-url' })
+    });
+    assert.equal(createRes.status, 502);
+
+    const res = await fetch(`${baseUrl}/api/images`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'job-invalid-url', imageUrl: 'ftp://example.com/not-allowed.png' })
     });
 
     const body = await res.json();
@@ -79,6 +118,7 @@ test('POST /api/images rejects invalid image URLs', async () => {
     assert.equal(body.error, 'Image URL must be an absolute http or https URL');
   } finally {
     server.kill('SIGTERM');
+    failingWebhook.close();
   }
 });
 
@@ -93,7 +133,7 @@ test('POST /api/images/script returns stable error envelope on invalid image URL
     const res = await fetch(`${baseUrl}/api/images/script`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl: 'not-a-url' })
+      body: JSON.stringify({ id: 'job-script-invalid', imageUrl: 'not-a-url' })
     });
 
     const body = await res.json();
@@ -109,10 +149,10 @@ test('POST /api/images/script returns stable error envelope on invalid image URL
 test('SSE stream emits pin-created after successful URL pin', async () => {
   const port = 4312;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const server = startServer(port);
-  const imageHostPort = 5312;
-  const imageHost = await startImageHost(imageHostPort);
-
+  const webhookPort = 5312;
+  const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const { server: failingWebhook } = await startFailingWebhookServer(webhookPort);
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
   try {
     await waitForServer(baseUrl);
 
@@ -134,16 +174,15 @@ test('SSE stream emits pin-created after successful URL pin', async () => {
       return false;
     };
 
-    const imageUrl = `http://127.0.0.1:${imageHostPort}/ok.png`;
-
-    const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
+    const imageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Xn5cAAAAASUVORK5CYII=';
+    const uploadRes = await fetch(`${baseUrl}/api/webcam-trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl })
+      body: JSON.stringify({ imageDataUrl, job_id: 'job-sse-pin-created' })
     });
     const uploadBody = await uploadRes.json();
-    assert.equal(uploadRes.status, 201);
-    assert.equal(uploadBody.ok, true);
+    assert.equal(uploadRes.status, 502);
+    assert.equal(uploadBody.ok, false);
 
     const gotPinEvent = await readUntilPinCreated();
     assert.equal(gotPinEvent, true);
@@ -151,7 +190,7 @@ test('SSE stream emits pin-created after successful URL pin', async () => {
     assert.match(raw, /"id"/);
   } finally {
     server.kill('SIGTERM');
-    imageHost.close();
+    failingWebhook.close();
   }
 });
 
@@ -159,25 +198,22 @@ test('SSE stream emits pin-created after successful URL pin', async () => {
 test('PATCH /api/images/:id/position persists new coordinates', async () => {
   const port = 4313;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const server = startServer(port);
-  const imageHostPort = 5313;
-  const imageHost = await startImageHost(imageHostPort);
+  const webhookPort = 5313;
+  const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const { server: failingWebhook } = await startFailingWebhookServer(webhookPort);
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
 
   try {
     await waitForServer(baseUrl);
 
-    const imageUrl = `http://127.0.0.1:${imageHostPort}/drag-me.png`;
-
-    const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
+    const createRes = await fetch(`${baseUrl}/api/webcam-trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl })
+      body: JSON.stringify({ imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Xn5cAAAAASUVORK5CYII=', job_id: 'job-drag' })
     });
-    const uploadBody = await uploadRes.json();
-    assert.equal(uploadRes.status, 201);
-    assert.equal(uploadBody.ok, true);
+    assert.equal(createRes.status, 502);
 
-    const id = uploadBody.data.id;
+    const id = 'job-drag';
 
     const patchRes = await fetch(`${baseUrl}/api/images/${encodeURIComponent(id)}/position`, {
       method: 'PATCH',
@@ -194,14 +230,17 @@ test('PATCH /api/images/:id/position persists new coordinates', async () => {
     assert.equal(updated.y, -222);
   } finally {
     server.kill('SIGTERM');
-    imageHost.close();
+    failingWebhook.close();
   }
 });
 
 test('POST /api/images stores prompt alongside the external image URL', async () => {
   const port = 4314;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const server = startServer(port);
+  const webhookPort = 5414;
+  const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const { server: failingWebhook } = await startFailingWebhookServer(webhookPort);
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
   const imageHostPort = 5314;
   const imageHost = await startImageHost(imageHostPort);
 
@@ -210,14 +249,21 @@ test('POST /api/images stores prompt alongside the external image URL', async ()
 
     const imageUrl = `http://127.0.0.1:${imageHostPort}/prompted.png`;
     const prompt = 'a neon-lit skyline at dusk';
+    const createRes = await fetch(`${baseUrl}/api/webcam-trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Xn5cAAAAASUVORK5CYII=', job_id: 'job-prompt' })
+    });
+    assert.equal(createRes.status, 502);
+
     const uploadRes = await fetch(`${baseUrl}/api/images`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl, prompt })
+      body: JSON.stringify({ id: 'job-prompt', imageUrl, prompt })
     });
     const uploadBody = await uploadRes.json();
 
-    assert.equal(uploadRes.status, 201);
+    assert.equal(uploadRes.status, 200);
     assert.equal(uploadBody.prompt, prompt);
 
     const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`, { redirect: 'manual' });
@@ -232,6 +278,7 @@ test('POST /api/images stores prompt alongside the external image URL', async ()
     assert.equal(latestBody.url, imageUrl);
   } finally {
     server.kill('SIGTERM');
+    failingWebhook.close();
     imageHost.close();
   }
 });
@@ -239,7 +286,10 @@ test('POST /api/images stores prompt alongside the external image URL', async ()
 test('POST /api/images parses JSON prompt text and stores structured data', async () => {
   const port = 4316;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const server = startServer(port);
+  const webhookPort = 5416;
+  const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const { server: failingWebhook } = await startFailingWebhookServer(webhookPort);
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
   const imageHostPort = 5316;
   const imageHost = await startImageHost(imageHostPort);
 
@@ -248,14 +298,21 @@ test('POST /api/images parses JSON prompt text and stores structured data', asyn
 
     const imageUrl = `http://127.0.0.1:${imageHostPort}/json-prompted.png`;
     const prompt = { mood: 'calm', style: 'minimal', tags: ['blue', 'soft'] };
+    const createRes = await fetch(`${baseUrl}/api/webcam-trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Xn5cAAAAASUVORK5CYII=', job_id: 'job-json-prompt' })
+    });
+    assert.equal(createRes.status, 502);
+
     const uploadRes = await fetch(`${baseUrl}/api/images`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl, prompt: JSON.stringify(prompt) })
+      body: JSON.stringify({ id: 'job-json-prompt', imageUrl, prompt: JSON.stringify(prompt) })
     });
     const uploadBody = await uploadRes.json();
 
-    assert.equal(uploadRes.status, 201);
+    assert.equal(uploadRes.status, 200);
     assert.deepEqual(uploadBody.prompt, prompt);
 
     const rawLatestRes = await fetch(`${baseUrl}/api/images/latest`, { redirect: 'manual' });
@@ -270,6 +327,7 @@ test('POST /api/images parses JSON prompt text and stores structured data', asyn
     assert.equal(latestBody.url, imageUrl);
   } finally {
     server.kill('SIGTERM');
+    failingWebhook.close();
     imageHost.close();
   }
 });
@@ -277,7 +335,10 @@ test('POST /api/images parses JSON prompt text and stores structured data', asyn
 test('POST /api/images/script stores prompt and exposes it in the response data', async () => {
   const port = 4315;
   const baseUrl = `http://127.0.0.1:${port}`;
-  const server = startServer(port);
+  const webhookPort = 5415;
+  const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const { server: failingWebhook } = await startFailingWebhookServer(webhookPort);
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
   const imageHostPort = 5315;
   const imageHost = await startImageHost(imageHostPort);
 
@@ -286,18 +347,26 @@ test('POST /api/images/script stores prompt and exposes it in the response data'
 
     const imageUrl = `http://127.0.0.1:${imageHostPort}/script-prompted.png`;
     const prompt = 'a minimal red robot on a white background';
+    const createRes = await fetch(`${baseUrl}/api/webcam-trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Xn5cAAAAASUVORK5CYII=', job_id: 'job-script-prompt' })
+    });
+    assert.equal(createRes.status, 502);
+
     const uploadRes = await fetch(`${baseUrl}/api/images/script`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl, prompt })
+      body: JSON.stringify({ id: 'job-script-prompt', imageUrl, prompt })
     });
     const uploadBody = await uploadRes.json();
 
-    assert.equal(uploadRes.status, 201);
+    assert.equal(uploadRes.status, 200);
     assert.equal(uploadBody.ok, true);
     assert.equal(uploadBody.data.prompt, prompt);
   } finally {
     server.kill('SIGTERM');
+    failingWebhook.close();
     imageHost.close();
   }
 });

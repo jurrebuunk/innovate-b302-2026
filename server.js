@@ -214,6 +214,35 @@ function createImageFromUrl(imageUrl, prompt) {
   };
 }
 
+function createGeneratingImage(jobId) {
+  const pos = randomPos();
+  return {
+    id: jobId,
+    url: '/assets/video/ai-loading.mp4',
+    mediaType: 'video',
+    status: 'generating',
+    x: pos.x,
+    y: pos.y,
+    rotation: Math.round((Math.random() * 16 - 8) * 10) / 10,
+    scale: Math.round((0.75 + Math.random() * 0.7) * 100) / 100,
+    createdAt: new Date().toISOString(),
+    prompt: null
+  };
+}
+
+function flowHasStarted(payload) {
+  const direct = payload?.flow_started ?? payload?.flowStarted;
+  if (typeof direct === 'boolean') return direct;
+
+  const status = typeof payload?.status === 'string' ? payload.status.trim().toLowerCase() : '';
+  if (status === 'flow_started' || status === 'flow-started' || status === 'started') return true;
+
+  const nested = payload?.info?.flow_started ?? payload?.info?.flowStarted;
+  if (typeof nested === 'boolean') return nested;
+
+  return false;
+}
+
 let persistQueue = Promise.resolve();
 let captureFlowsPersistQueue = Promise.resolve();
 
@@ -237,6 +266,41 @@ function persistImage(imageUrl, prompt) {
     saveBoard(items);
     broadcast('pin-created', image);
     return image;
+  });
+}
+
+function persistGeneratingImage(jobId) {
+  return enqueuePersist(async () => {
+    const items = loadBoard();
+    const existing = items.find((item) => item.id === jobId);
+    if (existing) return existing;
+    const image = createGeneratingImage(jobId);
+    items.push(image);
+    saveBoard(items);
+    broadcast('pin-created', image);
+    return image;
+  });
+}
+
+function updateImageById(id, imageUrl, prompt) {
+  return enqueuePersist(async () => {
+    const items = loadBoard();
+    const index = items.findIndex((item) => item.id === id);
+    if (index === -1) return null;
+
+    const updated = {
+      ...items[index],
+      url: normalizeImageUrl(imageUrl),
+      mediaType: 'image',
+      status: 'ready',
+      prompt: normalizePrompt(prompt),
+      updatedAt: new Date().toISOString()
+    };
+
+    items[index] = updated;
+    saveBoard(items);
+    broadcast('pin-updated', updated);
+    return updated;
   });
 }
 
@@ -282,17 +346,31 @@ app.get('/api/stream', (req, res) => {
 });
 
 app.post('/api/images', (req, res) => {
+  const id = normalizeJobId(req.body?.id ?? req.body?.job_id ?? req.body?.jobId);
+  if (!id) return res.status(400).json({ error: 'id is required' });
+
   const rawImageUrl = req.body?.imageUrl ?? req.body?.url;
   const imageUrlError = normalizeImageUrlError(rawImageUrl);
   if (imageUrlError) return res.status(imageUrlError.status).json({ error: imageUrlError.message });
   const imageUrl = normalizeImageUrl(rawImageUrl);
 
-  persistImage(imageUrl, req.body?.prompt)
-    .then((image) => res.status(201).json(image))
-    .catch(() => res.status(500).json({ error: 'Failed to persist image' }));
+  updateImageById(id, imageUrl, req.body?.prompt)
+    .then((image) => {
+      if (!image) return res.status(404).json({ error: 'Image id not found' });
+      return res.status(200).json(image);
+    })
+    .catch(() => res.status(500).json({ error: 'Failed to update image' }));
 });
 
 app.post('/api/images/script', (req, res) => {
+  const id = normalizeJobId(req.body?.id ?? req.body?.job_id ?? req.body?.jobId);
+  if (!id) {
+    return res.status(400).json({
+      ok: false,
+      error: { code: 'MISSING_ID', message: 'id is required' }
+    });
+  }
+
   const rawImageUrl = req.body?.imageUrl ?? req.body?.url;
   const imageUrlError = normalizeImageUrlError(rawImageUrl);
   if (imageUrlError) {
@@ -304,11 +382,19 @@ app.post('/api/images/script', (req, res) => {
 
   const imageUrl = normalizeImageUrl(rawImageUrl);
 
-  return persistImage(imageUrl, req.body?.prompt)
-    .then((image) => res.status(201).json({ ok: true, data: image }))
+  return updateImageById(id, imageUrl, req.body?.prompt)
+    .then((image) => {
+      if (!image) {
+        return res.status(404).json({
+          ok: false,
+          error: { code: 'NOT_FOUND', message: 'Image id not found' }
+        });
+      }
+      return res.status(200).json({ ok: true, data: image });
+    })
     .catch(() => res.status(500).json({
       ok: false,
-      error: { code: 'PERSIST_FAILED', message: 'Failed to persist image' }
+      error: { code: 'PERSIST_FAILED', message: 'Failed to update image' }
     }));
 });
 
@@ -320,6 +406,7 @@ app.post('/api/webcam-trigger', async (req, res) => {
   pendingCaptureIds.add(jobId);
 
   if (!image) {
+    pendingCaptureIds.delete(jobId);
     return res.status(400).json({
       ok: false,
       error: {
@@ -405,6 +492,11 @@ app.post('/api/n8n-updates', (req, res) => {
     const flows = loadCaptureFlows();
     flows.set(jobId, workflowUpdate);
     saveCaptureFlows(flows);
+
+    if (flowHasStarted(payload)) {
+      await persistGeneratingImage(jobId);
+    }
+
     pendingCaptureIds.delete(jobId);
     broadcast('workflow-update', workflowUpdate);
     return res.status(202).json({ ok: true });

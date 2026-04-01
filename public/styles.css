@@ -385,7 +385,8 @@ button:hover { background: #2563eb; }
   z-index: 5;
 }
 
-.pin img {
+.pin img,
+.pin video {
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -398,6 +399,11 @@ button:hover { background: #2563eb; }
 
 .pin-content--intro {
   animation: pin-drop-in 460ms cubic-bezier(0.18, 0.8, 0.22, 1) both;
+}
+
+.pin-content--generating-pop {
+  animation: pin-generating-pop 1150ms cubic-bezier(0.14, 1, 0.22, 1) both;
+  filter: drop-shadow(0 0 0 rgba(250, 204, 21, 0));
 }
 
 @keyframes pin-drop-in {
@@ -414,6 +420,54 @@ button:hover { background: #2563eb; }
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes pin-generating-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.22) rotate(-18deg);
+    filter: saturate(0.75) brightness(0.85);
+  }
+
+  28% {
+    opacity: 1;
+    transform: scale(1.44) rotate(9deg);
+    filter: saturate(1.35) brightness(1.16);
+  }
+
+  54% {
+    transform: scale(0.76) rotate(-6deg);
+    filter: saturate(1.2) brightness(1.07);
+  }
+
+  76% {
+    transform: scale(1.12) rotate(3deg);
+    filter: saturate(1.1) brightness(1.03);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    filter: none;
+  }
+}
+
+@keyframes pin-generating-shell {
+  0% {
+    box-shadow: 0 0 0 rgba(250, 204, 21, 0);
+  }
+
+  24% {
+    filter: drop-shadow(0 0 28px rgba(250, 204, 21, 0.42)) drop-shadow(0 20px 42px rgba(0, 0, 0, 0.45));
+  }
+
+  56% {
+    filter: drop-shadow(0 0 14px rgba(250, 204, 21, 0.24)) drop-shadow(0 14px 30px rgba(0, 0, 0, 0.38));
+  }
+
+  100% {
+    filter: drop-shadow(0 0 0 rgba(250, 204, 21, 0)) drop-shadow(0 0 0 rgba(0, 0, 0, 0));
   }
 }
 

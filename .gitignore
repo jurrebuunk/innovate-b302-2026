@@ -3,3 +3,4 @@ node_modules
 uploads/*
 !uploads/.gitkeep
 board.json
+capture-flows.json
