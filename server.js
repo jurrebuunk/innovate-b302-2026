@@ -38,6 +38,7 @@ app.use(express.json({ limit: '12mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const boardFile = path.join(__dirname, 'board.json');
+const captureFlowsFile = path.join(__dirname, 'capture-flows.json');
 const webcamWebhookUrl = process.env.WEBHOOK_URL || 'http://n8n.lan.buunk.org:5678/webhook/7c817235-db8e-49e8-b985-887fadce5c3f';
 
 function loadBoard() {
@@ -53,6 +54,27 @@ function saveBoard(items) {
   fs.writeFileSync(boardFile, JSON.stringify(items, null, 2));
 }
 
+function loadCaptureFlows() {
+  if (!fs.existsSync(captureFlowsFile)) return new Map();
+  try {
+    const parsed = JSON.parse(fs.readFileSync(captureFlowsFile, 'utf-8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return new Map();
+    return new Map(Object.entries(parsed));
+  } catch {
+    return new Map();
+  }
+}
+
+function saveCaptureFlows(map) {
+  const asObject = Object.fromEntries(map.entries());
+  fs.writeFileSync(captureFlowsFile, JSON.stringify(asObject, null, 2));
+}
+
+function loadLatestCaptureFlowForJob(jobId) {
+  const flows = loadCaptureFlows();
+  return flows.get(jobId) || null;
+}
+
 const CLUSTER_RADIUS = 900;
 
 function randomPos() {
@@ -66,7 +88,7 @@ function randomPos() {
 }
 
 const streamClients = new Set();
-let latestWorkflowUpdate = null;
+const pendingCaptureIds = new Set();
 
 function sendSse(res, event, data) {
   if (!res || res.writableEnded || res.destroyed) return false;
@@ -193,10 +215,17 @@ function createImageFromUrl(imageUrl, prompt) {
 }
 
 let persistQueue = Promise.resolve();
+let captureFlowsPersistQueue = Promise.resolve();
 
 function enqueuePersist(task) {
   const run = persistQueue.then(task, task);
   persistQueue = run.catch(() => {});
+  return run;
+}
+
+function enqueueCaptureFlowsPersist(task) {
+  const run = captureFlowsPersistQueue.then(task, task);
+  captureFlowsPersistQueue = run.catch(() => {});
   return run;
 }
 
@@ -288,6 +317,7 @@ app.post('/api/webcam-trigger', async (req, res) => {
   const requestedJobId = req.body?.job_id ?? req.body?.jobId;
   const jobId = normalizeJobId(requestedJobId) || createJobId();
   const image = normalizeDataUrl(imageDataUrl);
+  pendingCaptureIds.add(jobId);
 
   if (!image) {
     return res.status(400).json({
@@ -312,6 +342,7 @@ app.post('/api/webcam-trigger', async (req, res) => {
     });
 
     if (!response.ok) {
+      pendingCaptureIds.delete(jobId);
       const errorText = await response.text().catch(() => '');
       return res.status(502).json({
         ok: false,
@@ -326,6 +357,7 @@ app.post('/api/webcam-trigger', async (req, res) => {
 
     return res.json({ ok: true, job_id: jobId });
   } catch (error) {
+    pendingCaptureIds.delete(jobId);
     return res.status(502).json({
       ok: false,
       error: {
@@ -348,31 +380,75 @@ app.post('/api/n8n-updates', (req, res) => {
     });
   }
 
+  const requestedJobId = payload.job_id ?? payload.jobId;
+  const jobId = normalizeJobId(requestedJobId);
+  if (!jobId) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: 'MISSING_JOB_ID',
+        message: 'Update payload must include job_id'
+      }
+    });
+  }
+
   const workflowUpdate = {
     id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+    job_id: jobId,
     receivedAt: new Date().toISOString(),
     status: payload.status ?? null,
     info: payload.info ?? null,
     payload
   };
 
-  latestWorkflowUpdate = workflowUpdate;
-  broadcast('workflow-update', workflowUpdate);
-  return res.status(202).json({ ok: true });
+  return enqueueCaptureFlowsPersist(async () => {
+    const flows = loadCaptureFlows();
+    flows.set(jobId, workflowUpdate);
+    saveCaptureFlows(flows);
+    pendingCaptureIds.delete(jobId);
+    broadcast('workflow-update', workflowUpdate);
+    return res.status(202).json({ ok: true });
+  }).catch(() => res.status(500).json({
+    ok: false,
+    error: {
+      code: 'CAPTURE_FLOW_PERSIST_FAILED',
+      message: 'Failed to persist capture flow update'
+    }
+  }));
 });
 
-app.get('/api/n8n-updates/latest', (_req, res) => {
+app.get('/api/n8n-updates/:jobId', (req, res) => {
+  const jobId = normalizeJobId(req.params?.jobId);
+  if (!jobId) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: 'INVALID_JOB_ID',
+        message: 'jobId is required'
+      }
+    });
+  }
+
+  const latestWorkflowUpdate = loadLatestCaptureFlowForJob(jobId);
   if (!latestWorkflowUpdate) {
+    if (pendingCaptureIds.has(jobId)) {
+      return res.status(202).json({ ok: true, pending: true, job_id: jobId });
+    }
+
     return res.status(404).json({
       ok: false,
       error: {
         code: 'NO_UPDATES',
-        message: 'No workflow updates received yet'
+        message: 'No workflow updates received for this job'
       }
     });
   }
 
   return res.json({ ok: true, data: latestWorkflowUpdate });
+});
+
+app.get(/^\/capture(?:\/[^/]+)?\/?$/, (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'capture.html'));
 });
 
 app.patch('/api/images/:id/position', (req, res) => {

@@ -6,10 +6,19 @@
   <title>Webcam Capture</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body class="capture-page">
+<body class="capture-page" data-embedded="0">
+  <pre id="captureDebug" class="capture-debug" hidden></pre>
   <main class="capture-stage" aria-label="Webcam preview">
     <video id="captureVideo" autoplay playsinline muted></video>
     <div class="capture-overlay" aria-hidden="true"></div>
+    <section id="capturePolaroid" class="capture-polaroid" hidden aria-live="polite">
+      <article id="capturePolaroidCard" class="capture-polaroid__card">
+        <div class="capture-polaroid__photo">
+          <video id="captureLoadingVideo" class="capture-polaroid__video" src="/assets/video/ai-loading.mp4" playsinline muted loop></video>
+        </div>
+        <p class="capture-polaroid__caption">Developing your image...</p>
+      </article>
+    </section>
   </main>
 
   <footer class="capture-footer">

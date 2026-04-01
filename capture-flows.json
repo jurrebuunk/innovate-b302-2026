@@ -1,0 +1,25 @@
+{
+  "88d45e59-9240-484b-9627-aee440f6a799": {
+    "id": "1775048331006-638579",
+    "job_id": "88d45e59-9240-484b-9627-aee440f6a799",
+    "receivedAt": "2026-04-01T12:58:51.006Z",
+    "status": "processing",
+    "info": {
+      "step": "post-check",
+      "progress": 88
+    },
+    "payload": {
+      "job_id": "88d45e59-9240-484b-9627-aee440f6a799",
+      "status": "processing",
+      "info": {
+        "step": "post-check",
+        "progress": 88
+      },
+      "debug": {
+        "source": "manual-curl",
+        "ts": "2026-04-01T12:58:00Z"
+      },
+      "message": "test update after load-listen change"
+    }
+  }
+}

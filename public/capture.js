@@ -1,6 +1,10 @@
 const video = document.getElementById('captureVideo');
 const captureStatus = document.getElementById('captureStatus');
 const shutterButton = document.getElementById('shutterButton');
+const capturePolaroid = document.getElementById('capturePolaroid');
+const capturePolaroidCard = document.getElementById('capturePolaroidCard');
+const captureLoadingVideo = document.getElementById('captureLoadingVideo');
+const captureDebug = document.getElementById('captureDebug');
 
 const webcamTriggerEndpoint = '/api/webcam-trigger';
 const themeStorageKey = 'pinboard-theme';
@@ -9,6 +13,16 @@ const canvas = document.createElement('canvas');
 
 let stream = null;
 let busy = false;
+const isEmbedded = new URLSearchParams(window.location.search).get('embedded') === '1';
+const pathMatch = window.location.pathname.match(/^\/capture\/([^/]+)$/);
+const captureId = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+
+function createCaptureId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  return `job-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+}
 
 function applyTheme() {
   const theme = window.localStorage.getItem(themeStorageKey) === 'light' ? 'light' : 'dark';
@@ -17,6 +31,10 @@ function applyTheme() {
 
 function setStatus(message) {
   if (captureStatus) captureStatus.textContent = message;
+}
+
+function setCaptureMode(mode) {
+  document.body.dataset.captureMode = mode;
 }
 
 async function startCamera() {
@@ -37,7 +55,7 @@ async function startCamera() {
   }
 }
 
-async function sendCapture(blob) {
+async function sendCapture(blob, jobId) {
   const imageDataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
@@ -48,13 +66,83 @@ async function sendCapture(blob) {
   const response = await fetch(webcamTriggerEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageDataUrl })
+    body: JSON.stringify({ imageDataUrl, job_id: jobId })
   });
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const message = payload?.error?.message || `Request failed with status ${response.status}`;
     throw new Error(message);
+  }
+}
+
+function showProcessingPolaroid() {
+  if (!capturePolaroid) return;
+  if (video) video.hidden = true;
+  capturePolaroid.hidden = false;
+  if (capturePolaroidCard) {
+    const tilt = (Math.random() * 10) - 5;
+    capturePolaroidCard.style.setProperty('--capture-polaroid-tilt', `${tilt.toFixed(1)}deg`);
+  }
+  if (captureLoadingVideo) {
+    captureLoadingVideo.currentTime = 0;
+    captureLoadingVideo.play().catch(() => {});
+  }
+}
+
+function formatStatus(status) {
+  if (status == null) return 'Processing update received';
+  if (typeof status === 'string') return status;
+  try {
+    return JSON.stringify(status);
+  } catch {
+    return 'Processing update received';
+  }
+}
+
+function applyWorkflowUpdate(updatePayload) {
+  const status = updatePayload?.data?.status ?? updatePayload?.status ?? null;
+  setStatus(`Status: ${formatStatus(status)}`);
+
+  if (captureDebug) {
+    const rawPayload = updatePayload?.data?.payload ?? updatePayload?.payload ?? updatePayload;
+    try {
+      captureDebug.textContent = JSON.stringify(rawPayload, null, 2);
+    } catch {
+      captureDebug.textContent = String(rawPayload);
+    }
+    captureDebug.hidden = false;
+  }
+}
+
+function connectWorkflowUpdates() {
+  if (!captureId) return;
+
+  const loadInitial = async () => {
+    try {
+      const res = await fetch(`/api/n8n-updates/${encodeURIComponent(captureId)}`);
+      if (!res.ok) return;
+      const payload = await res.json();
+      if (!payload?.ok) return;
+      applyWorkflowUpdate(payload);
+    } catch {}
+  };
+
+  loadInitial();
+
+  if (window.EventSource) {
+    const stream = new EventSource('/api/stream');
+    stream.addEventListener('workflow-update', (event) => {
+      try {
+        const update = JSON.parse(event.data);
+        if (!update || update.job_id !== captureId) return;
+        applyWorkflowUpdate(update);
+      } catch {}
+    });
+
+    window.addEventListener('beforeunload', () => {
+      stream.close();
+    });
   }
 }
 
@@ -70,6 +158,7 @@ async function captureFrame() {
   setStatus('Capturing image…');
 
   try {
+    const nextCaptureId = captureId || createCaptureId();
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
@@ -79,8 +168,18 @@ async function captureFrame() {
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('Failed to create image blob');
 
-    await sendCapture(blob);
-    if (window.parent && window.parent !== window) {
+    await sendCapture(blob, nextCaptureId);
+
+    if (!captureId) {
+      const params = new URLSearchParams(window.location.search);
+      const query = params.toString();
+      const suffix = query ? `?${query}` : '';
+      window.location.replace(`/capture/${encodeURIComponent(nextCaptureId)}${suffix}`);
+      return;
+    }
+
+    showProcessingPolaroid();
+    if (isEmbedded && window.parent && window.parent !== window) {
       window.parent.postMessage({ type: 'capture-submitted' }, window.location.origin);
     }
     setStatus('Image sent.');
@@ -116,4 +215,18 @@ window.addEventListener('storage', (event) => {
 });
 
 applyTheme();
-startCamera();
+if (captureId) {
+  setCaptureMode('processing');
+  showProcessingPolaroid();
+  if (shutterButton) shutterButton.hidden = true;
+  setStatus('Waiting for workflow update...');
+  if (captureDebug) {
+    captureDebug.hidden = false;
+    captureDebug.textContent = `waiting for updates for job_id: ${captureId}`;
+  }
+  connectWorkflowUpdates();
+} else {
+  setCaptureMode('camera');
+  if (captureDebug) captureDebug.hidden = true;
+  startCamera();
+}
