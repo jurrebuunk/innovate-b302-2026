@@ -307,8 +307,9 @@ test('POST /api/webcam-trigger forwards captured image as multipart upload', asy
   const baseUrl = `http://127.0.0.1:${port}`;
   const webhookPort = 5317;
   const webhookUrl = `http://127.0.0.1:${webhookPort}/webhook`;
+  const appUrl = `http://127.0.0.1:${port}`;
   const { server: webhookServer, requests } = await startWebhookServer(webhookPort);
-  const server = startServer(port, { WEBHOOK_URL: webhookUrl });
+  const server = startServer(port, { WEBHOOK_URL: webhookUrl, APP_URL: appUrl });
 
   try {
     await waitForServer(baseUrl);
@@ -324,10 +325,16 @@ test('POST /api/webcam-trigger forwards captured image as multipart upload', asy
 
     assert.equal(res.status, 200);
     assert.equal(body.ok, true);
+    assert.equal(typeof body.job_id, 'string');
+    assert.match(body.job_id, /^job-/);
     assert.equal(requests.length, 1);
     assert.match(requests[0].headers['content-type'], /multipart\/form-data/);
     assert.match(requests[0].body, /name="file"/);
     assert.match(requests[0].body, /filename="picture\.png"/);
+    assert.match(requests[0].body, /name="job_id"/);
+    assert.match(requests[0].body, /name="metadata"/);
+    assert.match(requests[0].body, new RegExp(`"appUrl":"${appUrl}"`));
+    assert.match(requests[0].body, /"job_id":"job-/);
   } finally {
     server.kill('SIGTERM');
     webhookServer.close();

@@ -21,9 +21,13 @@ const singleEmpty = document.getElementById('singleEmpty');
 const imageModal = document.getElementById('imageModal');
 const imageModalPanel = document.getElementById('imageModalPanel');
 const imageModalImage = document.getElementById('imageModalImage');
+const imageModalClose = document.getElementById('imageModalClose');
 const captureModal = document.getElementById('captureModal');
 const captureModalFrame = document.getElementById('captureModalFrame');
 const captureModalClose = document.getElementById('captureModalClose');
+const captureWorkflowStatus = document.getElementById('captureWorkflowStatus');
+const captureWorkflowStatusText = document.getElementById('captureWorkflowStatusText');
+const captureWorkflowInfo = document.getElementById('captureWorkflowInfo');
 
 const GRID_SIZE = 40;
 const BOARD_TEXTURE_SCALE_MULTIPLIER = 25;
@@ -77,7 +81,9 @@ const state = {
   pinNodes: new Map(),
   newPinIds: new Set(),
   allowPinIntroAnimation: false,
-  nextPinZ: 1
+  nextPinZ: 1,
+  awaitingWorkflowUpdate: false,
+  latestWorkflowUpdateId: null
 };
 
 function clampVisibleCount(totalPins, nextCount) {
@@ -549,13 +555,70 @@ function closeCaptureModal() {
   if (!captureModal || captureModal.hidden) return;
   captureModal.hidden = true;
   captureModalFrame?.removeAttribute('src');
+  if (captureModalFrame) captureModalFrame.hidden = false;
+  if (captureWorkflowStatus) captureWorkflowStatus.hidden = true;
+  if (captureWorkflowStatusText) captureWorkflowStatusText.textContent = 'Waiting for n8n update…';
+  if (captureWorkflowInfo) captureWorkflowInfo.textContent = '';
+  state.awaitingWorkflowUpdate = false;
 }
 
 function openCaptureModal() {
   if (!captureModal) return;
   const nonce = Date.now();
+  state.awaitingWorkflowUpdate = false;
+  state.latestWorkflowUpdateId = null;
+  if (captureModalFrame) captureModalFrame.hidden = false;
+  if (captureWorkflowStatus) captureWorkflowStatus.hidden = true;
+  if (captureWorkflowStatusText) captureWorkflowStatusText.textContent = 'Waiting for n8n update…';
+  if (captureWorkflowInfo) captureWorkflowInfo.textContent = '';
   captureModalFrame?.setAttribute('src', `/capture.html?embedded=1&t=${nonce}`);
   captureModal.hidden = false;
+}
+
+function formatWorkflowStatus(status) {
+  if (status == null) return 'Update received';
+  if (typeof status === 'string') return status;
+  try {
+    return JSON.stringify(status);
+  } catch {
+    return 'Update received';
+  }
+}
+
+function formatWorkflowInfo(info, payload) {
+  const source = info != null ? info : payload;
+  if (source == null) return '';
+  if (typeof source === 'string') return source;
+  try {
+    return JSON.stringify(source, null, 2);
+  } catch {
+    return String(source);
+  }
+}
+
+function renderWorkflowUpdate(update) {
+  if (!update || !captureWorkflowStatus) return;
+  if (captureModalFrame) captureModalFrame.hidden = true;
+  captureWorkflowStatus.hidden = false;
+  if (captureWorkflowStatusText) {
+    captureWorkflowStatusText.textContent = `Status: ${formatWorkflowStatus(update.status)}`;
+  }
+  if (captureWorkflowInfo) {
+    captureWorkflowInfo.textContent = formatWorkflowInfo(update.info, update.payload);
+  }
+}
+
+async function loadLatestWorkflowUpdate() {
+  try {
+    const res = await fetch('/api/n8n-updates/latest');
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (!payload?.ok || !payload.data) return;
+    if (state.latestWorkflowUpdateId && state.latestWorkflowUpdateId === payload.data.id) return;
+    state.latestWorkflowUpdateId = payload.data.id;
+    renderWorkflowUpdate(payload.data);
+    state.awaitingWorkflowUpdate = false;
+  } catch {}
 }
 
 function openImageModal(item) {
@@ -657,6 +720,16 @@ function connectRealtime() {
       const item = JSON.parse(event.data);
       updateLocalPinPosition(item.id, item.x, item.y);
       if (state.mode === 'board') renderPins();
+    } catch {}
+  });
+
+  stream.addEventListener('workflow-update', (event) => {
+    try {
+      const update = JSON.parse(event.data);
+      state.latestWorkflowUpdateId = update.id || null;
+      if (!state.awaitingWorkflowUpdate || captureModal?.hidden) return;
+      renderWorkflowUpdate(update);
+      state.awaitingWorkflowUpdate = false;
     } catch {}
   });
 }
@@ -876,6 +949,10 @@ imageModal?.addEventListener('click', (e) => {
   closeImageModal();
 });
 
+imageModalClose?.addEventListener('click', () => {
+  closeImageModal();
+});
+
 captureModalClose?.addEventListener('click', () => {
   closeCaptureModal();
 });
@@ -940,6 +1017,20 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', () => {
   applyTransform();
+});
+
+window.addEventListener('message', (event) => {
+  if (event.source !== captureModalFrame?.contentWindow) return;
+  const data = event.data;
+  if (!data || data.type !== 'capture-submitted') return;
+  if (captureModal?.hidden) return;
+
+  state.awaitingWorkflowUpdate = true;
+  if (captureModalFrame) captureModalFrame.hidden = true;
+  if (captureWorkflowStatus) captureWorkflowStatus.hidden = false;
+  if (captureWorkflowStatusText) captureWorkflowStatusText.textContent = 'Status: Waiting for n8n update…';
+  if (captureWorkflowInfo) captureWorkflowInfo.textContent = '';
+  loadLatestWorkflowUpdate();
 });
 
 async function initialize() {

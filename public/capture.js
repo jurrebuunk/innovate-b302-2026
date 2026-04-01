@@ -80,6 +80,9 @@ async function captureFrame() {
     if (!blob) throw new Error('Failed to create image blob');
 
     await sendCapture(blob);
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'capture-submitted' }, window.location.origin);
+    }
     setStatus('Image sent.');
   } catch (error) {
     setStatus(error.message || 'Failed to send capture.');
