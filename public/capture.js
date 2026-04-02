@@ -1,5 +1,6 @@
 const video = document.getElementById('captureVideo');
 const captureStatus = document.getElementById('captureStatus');
+const capturePolaroidCaption = document.getElementById('capturePolaroidCaption');
 const shutterButton = document.getElementById('shutterButton');
 const capturePolaroid = document.getElementById('capturePolaroid');
 const capturePolaroidCard = document.getElementById('capturePolaroidCard');
@@ -31,6 +32,7 @@ function applyTheme() {
 
 function setStatus(message) {
   if (captureStatus) captureStatus.textContent = message;
+  if (capturePolaroidCaption) capturePolaroidCaption.textContent = message;
 }
 
 function setCaptureMode(mode) {
