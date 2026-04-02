@@ -91,18 +91,34 @@ function showProcessingPolaroid() {
 }
 
 function formatStatus(status) {
-  if (status == null) return 'Processing update received';
-  if (typeof status === 'string') return status;
+  if (status == null) return 'We received your capture and are processing it.';
+  if (typeof status === 'string') {
+    const key = status.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (!key) return 'We received your capture and are processing it.';
+
+    if (key === 'flow_started') return 'Inspiratie opdoen van uw foto ...';
+    if (key === 'inspected_image') return 'Geinspireerd!';
+    if (key === 'generated_prompt') return 'Kwasten klaarleggen!';
+    if (key === 'comfyui_triggered') return 'Aan het schilderen...';
+    if (key === 'generation_completed') return 'Uw meesterwerk is klaar!';
+    if (key.includes('queue')) return 'Your request is queued and will start shortly.';
+    if (key.includes('upload')) return 'Uploading your generated image.';
+    if (key.includes('fail') || key.includes('error')) return 'Something went wrong while generating the image.';
+
+    const readable = status.replace(/[_-]+/g, ' ').trim();
+    return readable ? `Update: ${readable.charAt(0).toUpperCase()}${readable.slice(1)}.` : 'We received your capture and are processing it.';
+  }
+
   try {
-    return JSON.stringify(status);
+    return `Update received: ${JSON.stringify(status)}`;
   } catch {
-    return 'Processing update received';
+    return 'We received your capture and are processing it.';
   }
 }
 
 function applyWorkflowUpdate(updatePayload) {
   const status = updatePayload?.data?.status ?? updatePayload?.status ?? null;
-  setStatus(`Status: ${formatStatus(status)}`);
+  setStatus(formatStatus(status));
 
   if (captureDebug) {
     const rawPayload = updatePayload?.data?.payload ?? updatePayload?.payload ?? updatePayload;
