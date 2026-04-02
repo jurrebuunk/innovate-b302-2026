@@ -59,7 +59,12 @@ function loadCaptureFlows() {
   try {
     const parsed = JSON.parse(fs.readFileSync(captureFlowsFile, 'utf-8'));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return new Map();
-    return new Map(Object.entries(parsed));
+    const entries = Object.entries(parsed).map(([jobId, value]) => {
+      if (Array.isArray(value)) return [jobId, value];
+      if (value && typeof value === 'object') return [jobId, [value]];
+      return [jobId, []];
+    });
+    return new Map(entries);
   } catch {
     return new Map();
   }
@@ -72,7 +77,15 @@ function saveCaptureFlows(map) {
 
 function loadLatestCaptureFlowForJob(jobId) {
   const flows = loadCaptureFlows();
-  return flows.get(jobId) || null;
+  const history = flows.get(jobId);
+  if (!Array.isArray(history) || history.length === 0) return null;
+  return history[history.length - 1];
+}
+
+function loadCaptureFlowHistoryForJob(jobId) {
+  const flows = loadCaptureFlows();
+  const history = flows.get(jobId);
+  return Array.isArray(history) ? history : [];
 }
 
 const CLUSTER_RADIUS = 900;
@@ -491,7 +504,9 @@ app.post('/api/n8n-updates', (req, res) => {
 
   return enqueueCaptureFlowsPersist(async () => {
     const flows = loadCaptureFlows();
-    flows.set(jobId, workflowUpdate);
+    const history = flows.get(jobId);
+    const nextHistory = Array.isArray(history) ? [...history, workflowUpdate] : [workflowUpdate];
+    flows.set(jobId, nextHistory);
     saveCaptureFlows(flows);
 
     if (flowHasStarted(payload)) {
@@ -522,7 +537,8 @@ app.get('/api/n8n-updates/:jobId', (req, res) => {
     });
   }
 
-  const latestWorkflowUpdate = loadLatestCaptureFlowForJob(jobId);
+  const history = loadCaptureFlowHistoryForJob(jobId);
+  const latestWorkflowUpdate = history[history.length - 1] || null;
   if (!latestWorkflowUpdate) {
     if (pendingCaptureIds.has(jobId)) {
       return res.status(202).json({ ok: true, pending: true, job_id: jobId });
@@ -537,7 +553,7 @@ app.get('/api/n8n-updates/:jobId', (req, res) => {
     });
   }
 
-  return res.json({ ok: true, data: latestWorkflowUpdate });
+  return res.json({ ok: true, data: latestWorkflowUpdate, updates: history });
 });
 
 app.get(/^\/capture(?:\/[^/]+)?\/?$/, (_req, res) => {
