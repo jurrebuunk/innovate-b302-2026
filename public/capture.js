@@ -5,6 +5,8 @@ const shutterButton = document.getElementById('shutterButton');
 const capturePolaroid = document.getElementById('capturePolaroid');
 const capturePolaroidCard = document.getElementById('capturePolaroidCard');
 const captureLoadingVideo = document.getElementById('captureLoadingVideo');
+const captureResultImage = document.getElementById('captureResultImage');
+const captureBackButton = document.getElementById('captureBackButton');
 const captureDebug = document.getElementById('captureDebug');
 
 const webcamTriggerEndpoint = '/api/webcam-trigger';
@@ -82,6 +84,14 @@ function showProcessingPolaroid() {
   if (!capturePolaroid) return;
   if (video) video.hidden = true;
   capturePolaroid.hidden = false;
+  if (captureResultImage) {
+    captureResultImage.hidden = true;
+    captureResultImage.removeAttribute('src');
+  }
+  if (captureLoadingVideo) {
+    captureLoadingVideo.hidden = false;
+  }
+  if (captureBackButton) captureBackButton.hidden = true;
   if (capturePolaroidCard) {
     const tilt = (Math.random() * 10) - 5;
     capturePolaroidCard.style.setProperty('--capture-polaroid-tilt', `${tilt.toFixed(1)}deg`);
@@ -90,6 +100,32 @@ function showProcessingPolaroid() {
     captureLoadingVideo.currentTime = 0;
     captureLoadingVideo.play().catch(() => {});
   }
+}
+
+function showGeneratedImage(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== 'string') return;
+  if (captureLoadingVideo) {
+    captureLoadingVideo.pause?.();
+    captureLoadingVideo.hidden = true;
+  }
+  if (captureResultImage) {
+    captureResultImage.src = imageUrl;
+    captureResultImage.hidden = false;
+  }
+  if (captureBackButton) captureBackButton.hidden = false;
+}
+
+function captureRootUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const embedded = params.get('embedded');
+  const suffix = embedded ? `?embedded=${encodeURIComponent(embedded)}` : '';
+  return `/capture${suffix}`;
+}
+
+function imageUrlFromUpdate(updatePayload) {
+  const payload = updatePayload?.data?.payload ?? updatePayload?.payload ?? updatePayload;
+  const direct = payload?.imageUrl ?? payload?.image_url ?? null;
+  return typeof direct === 'string' && direct.trim().length > 0 ? direct.trim() : null;
 }
 
 function formatStatus(status) {
@@ -121,6 +157,11 @@ function formatStatus(status) {
 function applyWorkflowUpdate(updatePayload) {
   const status = updatePayload?.data?.status ?? updatePayload?.status ?? null;
   setStatus(formatStatus(status));
+  const key = typeof status === 'string' ? status.trim().toLowerCase().replace(/[\s-]+/g, '_') : '';
+  const imageUrl = imageUrlFromUpdate(updatePayload);
+  if (imageUrl && key === 'generation_completed') {
+    showGeneratedImage(imageUrl);
+  }
 
   if (captureDebug) {
     const rawPayload = updatePayload?.data?.payload ?? updatePayload?.payload ?? updatePayload;
@@ -218,6 +259,9 @@ function stopCamera() {
 }
 
 shutterButton?.addEventListener('click', captureFrame);
+captureBackButton?.addEventListener('click', () => {
+  window.location.assign(captureRootUrl());
+});
 
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {

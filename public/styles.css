@@ -762,6 +762,25 @@ body[data-theme='light'] .capture-modal__close {
   display: block;
 }
 
+.capture-back {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  border: 1px solid var(--brand-blue);
+  background: var(--brand-black);
+  color: var(--brand-blue);
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 0;
+}
+
+.capture-back:hover {
+  background: var(--brand-teal);
+  border-color: var(--brand-teal);
+  color: #fff;
+}
+
 .capture-polaroid__caption {
   margin: 16px 0 0;
   text-align: center;
