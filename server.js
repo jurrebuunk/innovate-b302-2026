@@ -420,6 +420,7 @@ app.post('/api/webcam-trigger', async (req, res) => {
     const formData = new FormData();
     formData.append('file', new Blob([image.buffer], { type: image.mimeType }), 'picture.png');
     formData.append('job_id', jobId);
+    if (appUrl) formData.append('app_url', appUrl);
     const metadata = { appUrl, job_id: jobId };
     formData.append('metadata', JSON.stringify(metadata));
 

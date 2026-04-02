@@ -401,6 +401,8 @@ test('POST /api/webcam-trigger forwards captured image as multipart upload', asy
     assert.match(requests[0].body, /name="file"/);
     assert.match(requests[0].body, /filename="picture\.png"/);
     assert.match(requests[0].body, /name="job_id"/);
+    assert.match(requests[0].body, /name="app_url"/);
+    assert.match(requests[0].body, appUrl);
     assert.match(requests[0].body, /name="metadata"/);
     assert.match(requests[0].body, new RegExp(`"appUrl":"${appUrl}"`));
     assert.match(requests[0].body, /"job_id":"job-/);

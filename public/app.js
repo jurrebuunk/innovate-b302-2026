@@ -70,7 +70,7 @@ const state = {
   timelineDragging: false,
   timelinePointerId: null,
   menuOpen: false,
-  theme: window.localStorage.getItem('pinboard-theme') || 'dark',
+  theme: 'dark',
   modalPinId: null,
   pinDrag: null,
   positionPersistTimers: new Map(),
@@ -670,8 +670,9 @@ function applyModeUi() {
 }
 
 function applyThemeUi() {
+  state.theme = 'dark';
   document.body.dataset.theme = state.theme;
-  themeToggle.textContent = state.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  if (themeToggle) themeToggle.textContent = 'Dark mode active';
 }
 
 function closeImageModal() {
@@ -988,8 +989,8 @@ modeToggle.addEventListener('click', () => {
 });
 
 themeToggle.addEventListener('click', () => {
-  state.theme = state.theme === 'dark' ? 'light' : 'dark';
-  window.localStorage.setItem('pinboard-theme', state.theme);
+  state.theme = 'dark';
+  window.localStorage.setItem('pinboard-theme', 'dark');
   applyThemeUi();
   closeMenu();
 });

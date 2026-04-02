@@ -25,8 +25,8 @@ function createCaptureId() {
 }
 
 function applyTheme() {
-  const theme = window.localStorage.getItem(themeStorageKey) === 'light' ? 'light' : 'dark';
-  document.body.dataset.theme = theme;
+  document.body.dataset.theme = 'dark';
+  window.localStorage.setItem(themeStorageKey, 'dark');
 }
 
 function setStatus(message) {
