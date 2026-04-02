@@ -7,6 +7,7 @@ const capturePolaroidCard = document.getElementById('capturePolaroidCard');
 const captureLoadingVideo = document.getElementById('captureLoadingVideo');
 const captureResultImage = document.getElementById('captureResultImage');
 const captureBackButton = document.getElementById('captureBackButton');
+const captureLogo = document.getElementById('captureLogo');
 const captureDebug = document.getElementById('captureDebug');
 
 const webcamTriggerEndpoint = '/api/webcam-trigger';
@@ -113,6 +114,7 @@ function showGeneratedImage(imageUrl) {
     captureResultImage.hidden = false;
   }
   if (captureBackButton) captureBackButton.hidden = false;
+  if (captureLogo) captureLogo.hidden = false;
 }
 
 function captureRootUrl() {
@@ -280,6 +282,7 @@ applyTheme();
 if (captureId) {
   setCaptureMode('processing');
   showProcessingPolaroid();
+  if (captureLogo) captureLogo.hidden = false;
   if (shutterButton) shutterButton.hidden = true;
   setStatus('Waiting for workflow update...');
   if (captureDebug) {
@@ -289,6 +292,7 @@ if (captureId) {
   connectWorkflowUpdates();
 } else {
   setCaptureMode('camera');
+  if (captureLogo) captureLogo.hidden = true;
   if (captureDebug) captureDebug.hidden = true;
   startCamera();
 }

@@ -317,13 +317,15 @@ function updateImageById(id, imageUrl, prompt) {
   });
 }
 
-function persistImagePosition(id, x, y) {
+function persistImagePosition(id, x, y, zOrder = null) {
   return enqueuePersist(async () => {
     const items = loadBoard();
     const index = items.findIndex((item) => item.id === id);
     if (index === -1) return null;
 
-    items[index] = { ...items[index], x, y };
+    const patch = { x, y };
+    if (Number.isFinite(zOrder)) patch.zOrder = zOrder;
+    items[index] = { ...items[index], ...patch };
     saveBoard(items);
     broadcast('pin-updated', items[index]);
     return items[index];
@@ -564,12 +566,18 @@ app.patch('/api/images/:id/position', (req, res) => {
   const { id } = req.params;
   const x = Number(req.body?.x);
   const y = Number(req.body?.y);
+  const zOrderRaw = req.body?.zOrder;
+  const zOrder = zOrderRaw == null ? null : Number(zOrderRaw);
 
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return res.status(400).json({ error: 'x and y must be finite numbers' });
   }
 
-  return persistImagePosition(id, Math.round(x), Math.round(y))
+  if (zOrderRaw != null && !Number.isFinite(zOrder)) {
+    return res.status(400).json({ error: 'zOrder must be a finite number when provided' });
+  }
+
+  return persistImagePosition(id, Math.round(x), Math.round(y), zOrder == null ? null : Math.round(zOrder))
     .then((image) => {
       if (!image) return res.status(404).json({ error: 'Image not found' });
       return res.json(image);

@@ -189,6 +189,10 @@ function mergePinsFromServer(items) {
       continue;
     }
 
+    if (Number.isFinite(local.zOrder) && Number.isFinite(incoming.zOrder)) {
+      incoming.zOrder = Math.max(local.zOrder, incoming.zOrder);
+    }
+
     const differs = (
       local.url !== incoming.url ||
       local.mediaType !== incoming.mediaType ||
@@ -231,27 +235,27 @@ function startPinSyncLoop() {
   state.syncTimer = window.setInterval(syncPinsFromServer, 1500);
 }
 
-async function persistPinPosition(id, x, y) {
+async function persistPinPosition(id, x, y, zOrder) {
   try {
     const res = await fetch(`/api/images/${encodeURIComponent(id)}/position`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ x, y })
+      body: JSON.stringify({ x, y, zOrder })
     });
 
     if (!res.ok) return;
     const updated = await res.json();
-    updateLocalPinPosition(updated.id, updated.x, updated.y);
+    updateLocalPinData(updated);
   } catch {}
 }
 
-function schedulePinPositionPersist(id, x, y) {
+function schedulePinPositionPersist(id, x, y, zOrder) {
   const prev = state.positionPersistTimers.get(id);
   if (prev) window.clearTimeout(prev);
 
   const timer = window.setTimeout(() => {
     state.positionPersistTimers.delete(id);
-    persistPinPosition(id, x, y);
+    persistPinPosition(id, x, y, zOrder);
   }, 150);
 
   state.positionPersistTimers.set(id, timer);
@@ -422,7 +426,7 @@ function createPinNode(item) {
       state.suppressPinClickUntil = performance.now() + 300;
     }
 
-    schedulePinPositionPersist(item.id, finalX, finalY);
+    schedulePinPositionPersist(item.id, finalX, finalY, item.zOrder);
 
     pin.style.transition = 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)';
     applyPinTransform(pin);
@@ -511,6 +515,11 @@ function syncPinNode(pin, item) {
 
 function renderPins() {
   const visible = state.allPins.slice(0, state.visibleCount);
+  const renderOrder = [...visible].sort((a, b) => {
+    const az = Number.isFinite(a.zOrder) ? a.zOrder : 0;
+    const bz = Number.isFinite(b.zOrder) ? b.zOrder : 0;
+    return az - bz;
+  });
   const visibleIds = new Set(visible.map((item) => item.id));
 
   for (const [id, node] of state.pinNodes.entries()) {
@@ -518,8 +527,8 @@ function renderPins() {
     if (node.parentElement === board) board.removeChild(node);
   }
 
-  for (let i = 0; i < visible.length; i++) {
-    const item = visible[i];
+  for (let i = 0; i < renderOrder.length; i++) {
+    const item = renderOrder[i];
     let pin = state.pinNodes.get(item.id);
     if (!pin) {
       pin = createPinNode(item);
