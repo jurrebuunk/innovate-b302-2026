@@ -9,6 +9,11 @@ const captureResultImage = document.getElementById('captureResultImage');
 const captureBackButton = document.getElementById('captureBackButton');
 const captureLogo = document.getElementById('captureLogo');
 const captureDebug = document.getElementById('captureDebug');
+const captureInspectedSidebar = document.getElementById('captureInspectedSidebar');
+const captureInspectedToggle = document.getElementById('captureInspectedToggle');
+const captureInspectedPanel = document.getElementById('captureInspectedPanel');
+const captureInspectedEmpty = document.getElementById('captureInspectedEmpty');
+const captureInspectedList = document.getElementById('captureInspectedList');
 
 const webcamTriggerEndpoint = '/api/webcam-trigger';
 const themeStorageKey = 'pinboard-theme';
@@ -156,13 +161,137 @@ function formatStatus(status) {
   }
 }
 
+function firstDefinedValue(candidates) {
+  for (const value of candidates) {
+    if (value !== undefined && value !== null) return value;
+  }
+  return null;
+}
+
+function contentFromUpdate(updatePayload) {
+  return firstDefinedValue([
+    updatePayload?.data?.payload?.content,
+    updatePayload?.payload?.content,
+    updatePayload?.data?.content,
+    updatePayload?.content
+  ]);
+}
+
+function parseMaybeJson(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeInspectedContent(rawContent) {
+  const parsed = parseMaybeJson(rawContent);
+  if (Array.isArray(parsed) && parsed.length === 1) {
+    const first = parsed[0];
+    if (first && typeof first === 'object' && !Array.isArray(first) && first.payload && typeof first.payload === 'object') {
+      return first.payload;
+    }
+  }
+  return parsed;
+}
+
+function formatInspectedValue(value) {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'string') return value.trim() ? value : '(empty)';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '(empty)';
+    if (value.every((item) => item === null || ['string', 'number', 'boolean'].includes(typeof item))) {
+      return value.map((item) => formatInspectedValue(item)).join(', ');
+    }
+    if (value.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
+      return value.map((item, index) => `#${index + 1} ${formatInspectedObject(item)}`).join(' | ');
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  if (typeof value === 'object') return formatInspectedObject(value);
+  return String(value);
+}
+
+function formatInspectedObject(value) {
+  const entries = Object.entries(value);
+  if (!entries.length) return '(empty object)';
+  return entries.map(([key, nestedValue]) => `${key}: ${formatInspectedValue(nestedValue)}`).join(', ');
+}
+
+function renderInspectedContent(rawContent) {
+  if (!captureInspectedList || !captureInspectedEmpty) return;
+  const content = normalizeInspectedContent(rawContent);
+  const rows = [];
+
+  if (Array.isArray(content)) {
+    content.forEach((item, index) => {
+      rows.push({ key: `item ${index + 1}`, value: formatInspectedValue(item) });
+    });
+  } else if (content && typeof content === 'object') {
+    for (const [key, value] of Object.entries(content)) {
+      rows.push({ key, value: formatInspectedValue(value) });
+    }
+  } else if (content !== null && content !== undefined) {
+    rows.push({ key: 'value', value: formatInspectedValue(content) });
+  }
+
+  captureInspectedList.innerHTML = '';
+  if (!rows.length) {
+    captureInspectedList.hidden = true;
+    captureInspectedEmpty.hidden = false;
+    return;
+  }
+
+  for (const row of rows) {
+    const item = document.createElement('li');
+    item.className = 'capture-inspected__item';
+
+    const key = document.createElement('span');
+    key.className = 'capture-inspected__key';
+    key.textContent = row.key;
+
+    const value = document.createElement('span');
+    value.className = 'capture-inspected__value';
+    value.textContent = row.value;
+
+    item.appendChild(key);
+    item.appendChild(value);
+    captureInspectedList.appendChild(item);
+  }
+
+  captureInspectedEmpty.hidden = true;
+  captureInspectedList.hidden = false;
+}
+
+function setInspectedSidebarCollapsed(collapsed) {
+  if (!captureInspectedSidebar || !captureInspectedToggle || !captureInspectedPanel) return;
+  captureInspectedSidebar.dataset.collapsed = collapsed ? '1' : '0';
+  captureInspectedPanel.hidden = collapsed;
+  captureInspectedToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  captureInspectedToggle.textContent = collapsed ? 'Show details' : 'Hide details';
+}
+
 function applyWorkflowUpdate(updatePayload) {
   const status = updatePayload?.data?.status ?? updatePayload?.status ?? null;
   setStatus(formatStatus(status));
   const key = typeof status === 'string' ? status.trim().toLowerCase().replace(/[\s-]+/g, '_') : '';
   const imageUrl = imageUrlFromUpdate(updatePayload);
+  const content = contentFromUpdate(updatePayload);
   if (imageUrl && key === 'generation_completed') {
     showGeneratedImage(imageUrl);
+  }
+  if (content !== null) {
+    renderInspectedContent(content);
   }
 
   if (captureDebug) {
@@ -265,6 +394,11 @@ captureBackButton?.addEventListener('click', () => {
   window.location.assign(captureRootUrl());
 });
 
+captureInspectedToggle?.addEventListener('click', () => {
+  const collapsed = captureInspectedSidebar?.dataset?.collapsed === '1';
+  setInspectedSidebarCollapsed(!collapsed);
+});
+
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     event.preventDefault();
@@ -282,6 +416,8 @@ applyTheme();
 if (captureId) {
   setCaptureMode('processing');
   showProcessingPolaroid();
+  if (captureInspectedSidebar) captureInspectedSidebar.hidden = false;
+  setInspectedSidebarCollapsed(false);
   if (captureLogo) captureLogo.hidden = false;
   if (shutterButton) shutterButton.hidden = true;
   setStatus('Waiting for workflow update...');

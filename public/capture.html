@@ -21,6 +21,14 @@
       </article>
     </section>
   </main>
+  <aside id="captureInspectedSidebar" class="capture-inspected" hidden data-collapsed="0">
+    <button id="captureInspectedToggle" type="button" class="capture-inspected__toggle" aria-expanded="true" aria-controls="captureInspectedPanel">Hide details</button>
+    <section id="captureInspectedPanel" class="capture-inspected__panel" aria-live="polite">
+      <h2 class="capture-inspected__title">Inspected image</h2>
+      <p id="captureInspectedEmpty" class="capture-inspected__empty">Waiting for inspected image details...</p>
+      <ul id="captureInspectedList" class="capture-inspected__list" hidden></ul>
+    </section>
+  </aside>
   <img id="captureLogo" class="capture-logo" src="/assets/images/logo.png" alt="B302 logo" hidden />
   <button id="captureBackButton" type="button" class="capture-page-back" hidden>Nieuwe foto</button>
 
