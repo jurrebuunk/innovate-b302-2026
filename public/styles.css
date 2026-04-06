@@ -750,7 +750,7 @@ body[data-theme='light'] .capture-modal__close {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(120vw, 1280px);
+  width: min(88vw, 900px);
   aspect-ratio: 1 / 1;
   transform: translate(-50%, -52%) scale(0.97);
   border-radius: 999px;
@@ -775,7 +775,6 @@ body[data-theme='light'] .capture-modal__close {
   border-radius: 0;
   background: #fdfeff;
   border: 2px solid var(--text);
-  box-shadow: 0 24px 66px rgba(0, 0, 0, 0.42);
   transform: rotate(var(--capture-polaroid-tilt, -2deg));
 }
 
