@@ -856,13 +856,15 @@ body[data-theme='light'] .capture-modal__close {
   display: flex;
   align-items: stretch;
   background: rgba(6, 9, 18, 0.92);
-  border-left: 1px solid rgba(148, 163, 184, 0.55);
   backdrop-filter: blur(8px);
 }
 
 .capture-inspected__toggle {
   border: 0;
-  border-left: 1px solid rgba(148, 163, 184, 0.45);
+  border-left: 1px solid #fff;
+  border-right: 1px solid #fff;
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid #fff;
   background: rgba(30, 41, 59, 0.85);
   color: #f8fafc;
   padding: 14px 10px;
@@ -944,7 +946,6 @@ body[data-theme='light'] .capture-modal__close {
 
 .capture-inspected[data-collapsed='1'] {
   background: transparent;
-  border-left-color: transparent;
   align-items: center;
 }
 
@@ -953,7 +954,7 @@ body[data-theme='light'] .capture-modal__close {
   padding: 14px 6px;
   width: 34px;
   background: rgba(15, 23, 42, 0.74);
-  border-color: rgba(148, 163, 184, 0.35);
+  border-color: #fff;
 }
 
 .capture-inspected__toggle-icon {
