@@ -12,6 +12,8 @@ const captureDebug = document.getElementById('captureDebug');
 const capturePolaroidGlow = document.getElementById('capturePolaroidGlow');
 const captureInspectedSidebar = document.getElementById('captureInspectedSidebar');
 const captureInspectedToggle = document.getElementById('captureInspectedToggle');
+const captureInspectedToggleLabel = document.getElementById('captureInspectedToggleLabel');
+const captureInspectedToggleIcon = document.getElementById('captureInspectedToggleIcon');
 const captureInspectedPanel = document.getElementById('captureInspectedPanel');
 const captureInspectedEmpty = document.getElementById('captureInspectedEmpty');
 const captureInspectedList = document.getElementById('captureInspectedList');
@@ -342,7 +344,8 @@ function setInspectedSidebarCollapsed(collapsed) {
   captureInspectedSidebar.dataset.collapsed = collapsed ? '1' : '0';
   captureInspectedPanel.hidden = collapsed;
   captureInspectedToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-  captureInspectedToggle.textContent = collapsed ? 'Show details' : 'Hide details';
+  if (captureInspectedToggleLabel) captureInspectedToggleLabel.textContent = collapsed ? 'Show details' : 'Hide details';
+  if (captureInspectedToggleIcon) captureInspectedToggleIcon.textContent = collapsed ? '◀' : '▶';
 }
 
 function applyWorkflowUpdate(updatePayload) {
