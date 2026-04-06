@@ -703,6 +703,40 @@ function normalizeTextValue(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeStatusKey(value) {
+  const text = normalizeTextValue(value);
+  if (!text) return null;
+  return text.toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function inspirationFromGeneratedPromptUpdate(update) {
+  if (!update || typeof update !== 'object') return null;
+
+  const statusKey = normalizeStatusKey(
+    update.status ??
+    update.payload?.status ??
+    update.data?.status
+  );
+  if (statusKey !== 'generated_prompt') return null;
+
+  const directInspiration = [
+    update.inspiration,
+    update.payload?.inspiration,
+    update.info?.inspiration,
+    update.data?.inspiration,
+    update.payload?.payload?.inspiration,
+    update.payload?.info?.inspiration,
+    update.payload?.data?.inspiration,
+    update.content?.inspiration
+  ]
+    .map(normalizeTextValue)
+    .find(Boolean);
+
+  if (directInspiration) return directInspiration;
+
+  return null;
+}
+
 function generatedPromptFromValue(value) {
   if (value == null) return null;
   if (typeof value === 'string') return normalizeTextValue(value);
@@ -749,6 +783,16 @@ async function loadPromptForPin(item) {
     if (!res.ok) return null;
     const payload = await res.json();
     if (!payload?.ok) return null;
+
+    const updates = [];
+    if (Array.isArray(payload.updates)) updates.push(...payload.updates);
+    if (payload.data && typeof payload.data === 'object') updates.push(payload.data);
+
+    for (let i = updates.length - 1; i >= 0; i--) {
+      const inspiration = inspirationFromGeneratedPromptUpdate(updates[i]);
+      if (inspiration) return inspiration;
+    }
+
     const fromHistory = generatedPromptFromValue(payload.updates);
     if (fromHistory) return fromHistory;
     return generatedPromptFromValue(payload.data);
