@@ -578,16 +578,8 @@ body[data-theme='light'] .blip {
 }
 
 .image-modal__note-body {
-  padding: 169px 64px 78px 119px;
+  padding: 189px 64px 78px 119px;
   overflow: hidden;
-}
-
-.image-modal__note-title {
-  margin: 0 0 10px;
-  font-size: 18px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #0f172a;
 }
 
 .image-modal__note-text {
@@ -595,6 +587,9 @@ body[data-theme='light'] .blip {
   font-size: 19px;
   line-height: 1.5;
   color: #111827;
+  font-family: "Bradley Hand", "Comic Sans MS", "Segoe Print", "Chalkboard SE", cursive;
+  font-weight: 400;
+  letter-spacing: 0.01em;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 400px;
@@ -667,11 +662,6 @@ body[data-theme='light'] .image-modal__note {
 
   .image-modal__note-body {
     padding: 52px 30px 26px 38px;
-  }
-
-  .image-modal__note-title {
-    font-size: 14px;
-    margin-bottom: 6px;
   }
 
   .image-modal__note-text {
