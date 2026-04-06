@@ -238,19 +238,21 @@ function applyPolaroidGlow(colors) {
   if (!capturePolaroidGlow) return;
   if (!Array.isArray(colors) || !colors.length) {
     capturePolaroidGlow.hidden = true;
-    capturePolaroidGlow.style.removeProperty('--capture-glow-gradient');
+    capturePolaroidGlow.style.removeProperty('--capture-glow-layers');
     return;
   }
 
   const palette = colors.slice(0, 6);
   const total = palette.length;
-  const stops = palette.map((color, index) => {
-    const position = total === 1 ? 50 : Math.round((index / (total - 1)) * 100);
-    return `${color} ${position}%`;
+  const layers = palette.map((color, index) => {
+    const angle = (index / total) * Math.PI * 2;
+    const x = Math.round(50 + (Math.cos(angle) * 22));
+    const y = Math.round(50 + (Math.sin(angle) * 18));
+    return `radial-gradient(circle at ${x}% ${y}%, ${color} 0%, ${color} 34%, transparent 68%)`;
   });
 
-  const gradient = `radial-gradient(circle at 50% 52%, ${stops.join(', ')})`;
-  capturePolaroidGlow.style.setProperty('--capture-glow-gradient', gradient);
+  layers.push('radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.16) 0%, transparent 62%)');
+  capturePolaroidGlow.style.setProperty('--capture-glow-layers', layers.join(', '));
   capturePolaroidGlow.hidden = false;
 }
 
