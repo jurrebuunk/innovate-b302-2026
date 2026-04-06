@@ -9,6 +9,7 @@ const captureResultImage = document.getElementById('captureResultImage');
 const captureBackButton = document.getElementById('captureBackButton');
 const captureLogo = document.getElementById('captureLogo');
 const captureDebug = document.getElementById('captureDebug');
+const capturePolaroidGlow = document.getElementById('capturePolaroidGlow');
 const captureInspectedSidebar = document.getElementById('captureInspectedSidebar');
 const captureInspectedToggle = document.getElementById('captureInspectedToggle');
 const captureInspectedPanel = document.getElementById('captureInspectedPanel');
@@ -199,6 +200,60 @@ function normalizeInspectedContent(rawContent) {
   return parsed;
 }
 
+function flattenPrimitiveStrings(value) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => flattenPrimitiveStrings(item));
+  }
+  return [];
+}
+
+function colorKeywordsFromContent(rawContent) {
+  const content = normalizeInspectedContent(rawContent);
+  if (!content || typeof content !== 'object' || Array.isArray(content)) return [];
+
+  const candidates = [];
+  if ('colors' in content) candidates.push(content.colors);
+  if ('colours' in content) candidates.push(content.colours);
+
+  const collected = candidates
+    .flatMap((value) => flattenPrimitiveStrings(value))
+    .map((value) => value.toLowerCase())
+    .filter((value) => /^[a-z]+$/.test(value));
+
+  const seen = new Set();
+  const unique = [];
+  for (const name of collected) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    unique.push(name);
+  }
+  return unique;
+}
+
+function applyPolaroidGlow(colors) {
+  if (!capturePolaroidGlow) return;
+  if (!Array.isArray(colors) || !colors.length) {
+    capturePolaroidGlow.hidden = true;
+    capturePolaroidGlow.style.removeProperty('--capture-glow-gradient');
+    return;
+  }
+
+  const palette = colors.slice(0, 6);
+  const total = palette.length;
+  const stops = palette.map((color, index) => {
+    const position = total === 1 ? 50 : Math.round((index / (total - 1)) * 100);
+    return `${color} ${position}%`;
+  });
+
+  const gradient = `radial-gradient(circle at 50% 52%, ${stops.join(', ')})`;
+  capturePolaroidGlow.style.setProperty('--capture-glow-gradient', gradient);
+  capturePolaroidGlow.hidden = false;
+}
+
 function formatInspectedValue(value) {
   if (value === null) return 'null';
   if (value === undefined) return 'undefined';
@@ -287,12 +342,14 @@ function applyWorkflowUpdate(updatePayload) {
   const key = typeof status === 'string' ? status.trim().toLowerCase().replace(/[\s-]+/g, '_') : '';
   const imageUrl = imageUrlFromUpdate(updatePayload);
   const content = contentFromUpdate(updatePayload);
+  const colors = colorKeywordsFromContent(content);
   if (imageUrl && key === 'generation_completed') {
     showGeneratedImage(imageUrl);
   }
   if (content !== null) {
     renderInspectedContent(content);
   }
+  applyPolaroidGlow(colors);
 
   if (captureDebug) {
     const rawPayload = updatePayload?.data?.payload ?? updatePayload?.payload ?? updatePayload;

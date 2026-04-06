@@ -746,7 +746,23 @@ body[data-theme='light'] .capture-modal__close {
   background: var(--bg);
 }
 
+.capture-polaroid__glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(78vw, 700px);
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -52%);
+  border-radius: 999px;
+  background: var(--capture-glow-gradient, radial-gradient(circle at 50% 52%, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0)));
+  filter: blur(54px) saturate(130%);
+  opacity: 0.58;
+  pointer-events: none;
+}
+
 .capture-polaroid__card {
+  position: relative;
+  z-index: 1;
   width: min(82vw, 520px);
   aspect-ratio: 4 / 5;
   padding: 18px 16px 28px;
