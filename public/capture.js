@@ -237,6 +237,7 @@ function colorKeywordsFromContent(rawContent) {
 function applyPolaroidGlow(colors) {
   if (!capturePolaroidGlow) return;
   if (!Array.isArray(colors) || !colors.length) {
+    capturePolaroidGlow.classList.remove('capture-polaroid__glow--visible');
     capturePolaroidGlow.hidden = true;
     capturePolaroidGlow.style.removeProperty('--capture-glow-layers');
     return;
@@ -246,14 +247,20 @@ function applyPolaroidGlow(colors) {
   const total = palette.length;
   const layers = palette.map((color, index) => {
     const angle = (index / total) * Math.PI * 2;
-    const x = Math.round(50 + (Math.cos(angle) * 22));
-    const y = Math.round(50 + (Math.sin(angle) * 18));
-    return `radial-gradient(circle at ${x}% ${y}%, ${color} 0%, ${color} 34%, transparent 68%)`;
+    const x = Math.round(50 + (Math.cos(angle) * 26));
+    const y = Math.round(50 + (Math.sin(angle) * 22));
+    return `radial-gradient(circle at ${x}% ${y}%, ${color} 0%, ${color} 22%, transparent 88%)`;
   });
 
-  layers.push('radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.16) 0%, transparent 62%)');
+  layers.push('radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.12) 0%, transparent 78%)');
   capturePolaroidGlow.style.setProperty('--capture-glow-layers', layers.join(', '));
+  capturePolaroidGlow.classList.remove('capture-polaroid__glow--visible');
   capturePolaroidGlow.hidden = false;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      capturePolaroidGlow?.classList.add('capture-polaroid__glow--visible');
+    });
+  });
 }
 
 function formatInspectedValue(value) {

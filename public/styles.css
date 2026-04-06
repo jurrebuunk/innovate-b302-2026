@@ -750,14 +750,20 @@ body[data-theme='light'] .capture-modal__close {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(78vw, 700px);
+  width: min(120vw, 1280px);
   aspect-ratio: 1 / 1;
-  transform: translate(-50%, -52%);
+  transform: translate(-50%, -52%) scale(0.97);
   border-radius: 999px;
   background: var(--capture-glow-layers, radial-gradient(circle at 50% 52%, rgba(15, 23, 42, 0.55) 0%, transparent 70%));
-  filter: blur(56px) saturate(150%);
-  opacity: 0.78;
+  filter: blur(84px) saturate(145%);
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 900ms ease, transform 1000ms ease;
+}
+
+.capture-polaroid__glow--visible {
+  opacity: 0.72;
+  transform: translate(-50%, -52%) scale(1);
 }
 
 .capture-polaroid__card {
