@@ -249,10 +249,10 @@ function applyPolaroidGlow(colors) {
     const angle = (index / total) * Math.PI * 2;
     const x = Math.round(50 + (Math.cos(angle) * 26));
     const y = Math.round(50 + (Math.sin(angle) * 22));
-    return `radial-gradient(circle at ${x}% ${y}%, ${color} 0%, ${color} 22%, transparent 88%)`;
+    return `radial-gradient(circle at ${x}% ${y}%, ${color} 0%, ${color} 8%, transparent 100%)`;
   });
 
-  layers.push('radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.12) 0%, transparent 78%)');
+  layers.push('radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.1) 0%, transparent 100%)');
   capturePolaroidGlow.style.setProperty('--capture-glow-layers', layers.join(', '));
   capturePolaroidGlow.classList.remove('capture-polaroid__glow--visible');
   capturePolaroidGlow.hidden = false;
