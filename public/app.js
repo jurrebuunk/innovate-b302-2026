@@ -721,12 +721,25 @@ function inspirationFromGeneratedPromptUpdate(update) {
 
   const directInspiration = [
     update.inspiration,
+    update.explenation,
+    update.explanation,
+    update.positive_prompt,
     update.payload?.inspiration,
+    update.payload?.explenation,
+    update.payload?.explanation,
+    update.payload?.positive_prompt,
     update.info?.inspiration,
     update.data?.inspiration,
     update.payload?.payload?.inspiration,
+    update.payload?.payload?.explenation,
+    update.payload?.payload?.explanation,
+    update.payload?.payload?.positive_prompt,
     update.payload?.info?.inspiration,
     update.payload?.data?.inspiration,
+    update.data?.payload?.inspiration,
+    update.data?.payload?.explenation,
+    update.data?.payload?.explanation,
+    update.data?.payload?.positive_prompt,
     update.content?.inspiration
   ]
     .map(normalizeTextValue)
