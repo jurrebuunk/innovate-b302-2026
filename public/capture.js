@@ -23,6 +23,7 @@ const canvas = document.createElement('canvas');
 
 let stream = null;
 let busy = false;
+let persistedGlowColors = [];
 const isEmbedded = new URLSearchParams(window.location.search).get('embedded') === '1';
 const pathMatch = window.location.pathname.match(/^\/capture\/([^/]+)$/);
 const captureId = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
@@ -357,7 +358,10 @@ function applyWorkflowUpdate(updatePayload) {
   if (content !== null) {
     renderInspectedContent(content);
   }
-  applyPolaroidGlow(colors);
+  if (colors.length) {
+    persistedGlowColors = colors;
+    applyPolaroidGlow(persistedGlowColors);
+  }
 
   if (captureDebug) {
     const rawPayload = updatePayload?.data?.payload ?? updatePayload?.payload ?? updatePayload;
