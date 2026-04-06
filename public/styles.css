@@ -856,7 +856,6 @@ body[data-theme='light'] .capture-modal__close {
   display: flex;
   align-items: stretch;
   background: rgba(6, 9, 18, 0.92);
-  backdrop-filter: blur(8px);
 }
 
 .capture-inspected__toggle {
