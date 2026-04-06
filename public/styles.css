@@ -855,25 +855,29 @@ body[data-theme='light'] .capture-modal__close {
   z-index: 22;
   display: flex;
   align-items: stretch;
-  justify-content: flex-end;
   background: rgba(6, 9, 18, 0.92);
   border-left: 1px solid rgba(148, 163, 184, 0.55);
   backdrop-filter: blur(8px);
 }
 
 .capture-inspected__toggle {
-  border: 1px solid rgba(148, 163, 184, 0.45);
+  border: 0;
+  border-left: 1px solid rgba(148, 163, 184, 0.45);
   background: rgba(30, 41, 59, 0.85);
   color: #f8fafc;
-  padding: 9px 12px;
+  padding: 14px 10px;
+  width: 52px;
   font-size: 12px;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  height: fit-content;
-  margin: 12px 12px 0 0;
+  margin: 0;
   cursor: pointer;
 }
 
@@ -945,11 +949,9 @@ body[data-theme='light'] .capture-modal__close {
 }
 
 .capture-inspected[data-collapsed='1'] .capture-inspected__toggle {
-  margin: 0 8px 0 0;
+  margin: 0 6px 0 0;
   padding: 14px 6px;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
+  width: 34px;
   background: rgba(15, 23, 42, 0.74);
   border-color: rgba(148, 163, 184, 0.35);
 }
@@ -1093,14 +1095,15 @@ body[data-capture-mode='camera'] .capture-stage::before {
   }
 
   .capture-inspected__toggle {
+    width: 46px;
     font-size: 11px;
-    padding: 8px 10px;
-    margin-right: 8px;
+    padding: 12px 8px;
   }
 
   .capture-inspected[data-collapsed='1'] .capture-inspected__toggle {
     margin-right: 6px;
     padding: 10px 5px;
+    width: 30px;
     font-size: 10px;
   }
 }
