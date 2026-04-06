@@ -921,6 +921,14 @@ body[data-theme='light'] .capture-modal__close {
   border-left-color: transparent;
 }
 
+.capture-inspected[data-collapsed='1'] .capture-inspected__toggle {
+  width: 28px;
+  padding: 10px 4px;
+  font-size: 10px;
+  border-left-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.5);
+}
+
 .capture-status {
   position: absolute;
   left: 18px;
@@ -1053,5 +1061,11 @@ body[data-capture-mode='camera'] .capture-stage::before {
   .capture-inspected__toggle {
     width: 46px;
     font-size: 11px;
+  }
+
+  .capture-inspected[data-collapsed='1'] .capture-inspected__toggle {
+    width: 24px;
+    font-size: 9px;
+    padding: 8px 3px;
   }
 }

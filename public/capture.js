@@ -417,7 +417,7 @@ if (captureId) {
   setCaptureMode('processing');
   showProcessingPolaroid();
   if (captureInspectedSidebar) captureInspectedSidebar.hidden = false;
-  setInspectedSidebarCollapsed(false);
+  setInspectedSidebarCollapsed(true);
   if (captureLogo) captureLogo.hidden = false;
   if (shutterButton) shutterButton.hidden = true;
   setStatus('Waiting for workflow update...');
