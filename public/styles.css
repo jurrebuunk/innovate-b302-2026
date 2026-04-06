@@ -566,9 +566,9 @@ body[data-theme='light'] .blip {
 
 .image-modal__note {
   position: absolute;
-  top: 38px;
+  top: 12px;
   left: calc(100% + 16px);
-  width: min(34vw, 286px);
+  width: min(52vw, 540px);
   aspect-ratio: 366 / 500;
   background: url('/assets/images/paper1') center / cover no-repeat;
   transform: rotate(2deg);
@@ -578,13 +578,13 @@ body[data-theme='light'] .blip {
 }
 
 .image-modal__note-body {
-  padding: 64px 30px 54px;
+  padding: 110px 72px 92px;
   overflow: hidden;
 }
 
 .image-modal__note-title {
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0 0 10px;
+  font-size: 18px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #0f172a;
@@ -592,14 +592,14 @@ body[data-theme='light'] .blip {
 
 .image-modal__note-text {
   margin: 0;
-  font-size: 15px;
-  line-height: 1.4;
+  font-size: 19px;
+  line-height: 1.5;
   color: #111827;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 250px;
+  max-height: 400px;
   overflow: auto;
-  padding-right: 3px;
+  padding-right: 6px;
 }
 
 .image-modal__close {
@@ -660,24 +660,24 @@ body[data-theme='light'] .image-modal__note {
     top: calc(100% + 12px);
     width: auto;
     max-width: none;
-    aspect-ratio: 366 / 260;
+    aspect-ratio: 366 / 290;
     transform: rotate(-1deg);
     background-size: 100% 100%;
   }
 
   .image-modal__note-body {
-    padding: 38px 22px 26px;
+    padding: 44px 34px 32px;
   }
 
   .image-modal__note-title {
-    font-size: 12px;
-    margin-bottom: 4px;
+    font-size: 14px;
+    margin-bottom: 6px;
   }
 
   .image-modal__note-text {
-    font-size: 13px;
-    line-height: 1.35;
-    max-height: 108px;
+    font-size: 15px;
+    line-height: 1.4;
+    max-height: 130px;
   }
 }
 
