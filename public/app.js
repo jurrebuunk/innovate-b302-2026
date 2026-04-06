@@ -22,6 +22,8 @@ const imageModal = document.getElementById('imageModal');
 const imageModalPanel = document.getElementById('imageModalPanel');
 const imageModalImage = document.getElementById('imageModalImage');
 const imageModalClose = document.getElementById('imageModalClose');
+const imageModalNote = document.getElementById('imageModalNote');
+const imageModalNoteText = document.getElementById('imageModalNoteText');
 const captureModal = document.getElementById('captureModal');
 const captureModalFrame = document.getElementById('captureModalFrame');
 const captureModalClose = document.getElementById('captureModalClose');
@@ -691,6 +693,68 @@ function closeImageModal() {
   imageModalImage?.removeAttribute('src');
   imageModalImage?.removeAttribute('alt');
   imageModalPanel?.style.removeProperty('--modal-tilt');
+  if (imageModalNote) imageModalNote.hidden = true;
+  if (imageModalNoteText) imageModalNoteText.textContent = '';
+}
+
+function normalizeTextValue(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function generatedPromptFromValue(value) {
+  if (value == null) return null;
+  if (typeof value === 'string') return normalizeTextValue(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = generatedPromptFromValue(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof value !== 'object') return null;
+
+  const direct = normalizeTextValue(value.generated_prompt);
+  if (direct) return direct;
+
+  const nestedCandidates = [
+    value.payload,
+    value.info,
+    value.data,
+    value.content
+  ];
+  for (const candidate of nestedCandidates) {
+    const nested = generatedPromptFromValue(candidate);
+    if (nested) return nested;
+  }
+
+  const status = normalizeTextValue(value.status)?.toLowerCase().replace(/[\s-]+/g, '_');
+  if (status === 'generated_prompt') {
+    const statusText = [
+      normalizeTextValue(value.prompt),
+      normalizeTextValue(value.message),
+      normalizeTextValue(value.text)
+    ].find(Boolean);
+    if (statusText) return statusText;
+  }
+
+  return null;
+}
+
+async function loadPromptForPin(item) {
+  if (!item?.id) return null;
+  try {
+    const res = await fetch(`/api/n8n-updates/${encodeURIComponent(item.id)}`);
+    if (!res.ok) return null;
+    const payload = await res.json();
+    if (!payload?.ok) return null;
+    const fromHistory = generatedPromptFromValue(payload.updates);
+    if (fromHistory) return fromHistory;
+    return generatedPromptFromValue(payload.data);
+  } catch {
+    return null;
+  }
 }
 
 function closeCaptureModal() {
@@ -706,15 +770,23 @@ function openCaptureModal() {
   captureModal.hidden = false;
 }
 
-function openImageModal(item) {
+async function openImageModal(item) {
   if (!item || !imageModal || !imageModalImage) return;
   const variation = fallbackVariation(item);
   const baseRotation = Number.isFinite(item.rotation) ? item.rotation : variation.rotation;
   const modalTilt = Math.max(-5, Math.min(5, baseRotation * 0.6));
   imageModalPanel?.style.setProperty('--modal-tilt', `${modalTilt}deg`);
   setImageSourceWithFallback(imageModalImage, item.url, item.originalName || 'Pinned image preview');
+  if (imageModalNote) imageModalNote.hidden = true;
+  if (imageModalNoteText) imageModalNoteText.textContent = '';
   imageModal.hidden = false;
   state.modalPinId = item.id || null;
+
+  const prompt = await loadPromptForPin(item);
+  if (!prompt) return;
+  if (state.modalPinId !== item.id || imageModal.hidden) return;
+  if (imageModalNoteText) imageModalNoteText.textContent = prompt;
+  if (imageModalNote) imageModalNote.hidden = false;
 }
 
 function closeMenu() {

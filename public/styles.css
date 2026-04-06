@@ -564,6 +564,36 @@ body[data-theme='light'] .blip {
   transform-origin: center center;
 }
 
+.image-modal__note {
+  position: absolute;
+  top: 56px;
+  left: calc(100% + 18px);
+  width: min(34vw, 260px);
+  min-height: 150px;
+  padding: 14px 14px 16px;
+  background: #ffe17a;
+  border: 1px solid #1f2937;
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.35);
+  transform: rotate(2.5deg);
+}
+
+.image-modal__note-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.image-modal__note-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .image-modal__close {
   position: absolute;
   top: 10px;
@@ -605,6 +635,27 @@ body[data-theme='light'] .image-modal__panel {
 body[data-theme='light'] .image-modal__close {
   background: rgba(255, 255, 255, 0.92);
   color: #0f172a;
+}
+
+body[data-theme='light'] .image-modal__note {
+  background: #fde68a;
+  border-color: #475569;
+}
+
+@media (max-width: 980px) {
+  .image-modal__panel {
+    width: min(92vw, 620px);
+  }
+
+  .image-modal__note {
+    left: 14px;
+    right: 14px;
+    top: calc(100% + 12px);
+    width: auto;
+    max-width: none;
+    min-height: 112px;
+    transform: rotate(-0.8deg);
+  }
 }
 
 .capture-modal {
