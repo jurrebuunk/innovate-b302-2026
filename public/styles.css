@@ -941,12 +941,15 @@ body[data-theme='light'] .capture-modal__close {
 .capture-inspected[data-collapsed='1'] {
   background: transparent;
   border-left-color: transparent;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .capture-inspected[data-collapsed='1'] .capture-inspected__toggle {
-  margin-top: 16px;
-  margin-right: 16px;
+  margin: 0 8px 0 0;
+  padding: 14px 6px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
   background: rgba(15, 23, 42, 0.74);
   border-color: rgba(148, 163, 184, 0.35);
 }
@@ -1096,8 +1099,8 @@ body[data-capture-mode='camera'] .capture-stage::before {
   }
 
   .capture-inspected[data-collapsed='1'] .capture-inspected__toggle {
-    margin-top: 10px;
-    margin-right: 10px;
+    margin-right: 6px;
+    padding: 10px 5px;
     font-size: 10px;
   }
 }
