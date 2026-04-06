@@ -256,11 +256,10 @@ function applyPolaroidGlow(colors) {
   capturePolaroidGlow.style.setProperty('--capture-glow-layers', layers.join(', '));
   capturePolaroidGlow.classList.remove('capture-polaroid__glow--visible');
   capturePolaroidGlow.hidden = false;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      capturePolaroidGlow?.classList.add('capture-polaroid__glow--visible');
-    });
-  });
+  void capturePolaroidGlow.offsetWidth;
+  setTimeout(() => {
+    capturePolaroidGlow?.classList.add('capture-polaroid__glow--visible');
+  }, 80);
 }
 
 function formatInspectedValue(value) {

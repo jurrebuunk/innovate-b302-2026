@@ -758,7 +758,7 @@ body[data-theme='light'] .capture-modal__close {
   filter: blur(84px) saturate(145%);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 900ms ease, transform 1000ms ease;
+  transition: opacity 1800ms ease-out, transform 2200ms ease-out;
 }
 
 .capture-polaroid__glow--visible {
