@@ -578,7 +578,7 @@ body[data-theme='light'] .blip {
 }
 
 .image-modal__note-body {
-  padding: 110px 72px 92px;
+  padding: 124px 64px 78px 84px;
   overflow: hidden;
 }
 
@@ -666,7 +666,7 @@ body[data-theme='light'] .image-modal__note {
   }
 
   .image-modal__note-body {
-    padding: 44px 34px 32px;
+    padding: 52px 30px 26px 38px;
   }
 
   .image-modal__note-title {
