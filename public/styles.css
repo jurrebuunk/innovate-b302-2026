@@ -972,8 +972,8 @@ body[data-theme='light'] .capture-modal__close {
   justify-content: center;
   gap: 0;
   padding: 12px;
-  background: rgba(43, 41, 42, 0.92);
-  border-left: 1px solid var(--text);
+  background: rgba(0, 0, 0, 0.5);
+  border-left: 0;
   backdrop-filter: blur(8px);
 }
 
@@ -1148,8 +1148,8 @@ body[data-theme='light'] .capture-polaroid {
 }
 
 body[data-theme='light'] .capture-footer {
-  background: rgba(15, 23, 42, 0.5);
-  border-left: 1px solid var(--text);
+  background: rgba(0, 0, 0, 0.5);
+  border-left: 0;
 }
 
 body[data-theme='light'] .capture-inspected {
