@@ -767,7 +767,7 @@ body[data-theme='light'] .capture-modal__close {
   left: 50%;
   z-index: 21;
   margin: 0;
-  width: min(38vw, 360px);
+  width: min(42vw, 410px);
   aspect-ratio: 366 / 500;
   background: url('/assets/images/paper1') center / cover no-repeat;
   transform: translate(172px, -54%) rotate(-3deg) scale(0.92);
@@ -845,7 +845,7 @@ body[data-theme='light'] .capture-modal__close {
 }
 
 .capture-polaroid__glow--visible {
-  opacity: 0.88;
+  opacity: 0.6;
   transform: translate(-50%, -52%) scale(1);
 }
 
@@ -859,6 +859,7 @@ body[data-theme='light'] .capture-modal__close {
   background: #fdfeff;
   border: 2px solid var(--text);
   transform: translateX(var(--capture-polaroid-shift-x, 0px)) rotate(var(--capture-polaroid-tilt, -2deg));
+  transition: transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .capture-polaroid__photo {
@@ -1217,7 +1218,7 @@ body[data-capture-mode='camera'] .capture-stage::before {
 
 @media (max-width: 1180px) and (min-width: 721px) {
   .capture-explanation {
-    width: min(44vw, 420px);
+    width: min(48vw, 460px);
     transform: translate(128px, -54%) rotate(-2.5deg) scale(0.92);
   }
 
