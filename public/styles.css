@@ -401,7 +401,7 @@ button:hover { background: var(--brand-blue); }
 }
 
 .pin.pin--logo {
-  width: clamp(260px, 50vw, 420px);
+  width: clamp(220px, 40vw, 340px);
   padding: 10px 10px 28px;
 }
 
@@ -414,7 +414,7 @@ button:hover { background: var(--brand-blue); }
   margin: 20px auto 0;
   aspect-ratio: auto;
   object-fit: contain;
-  background: transparent;
+  background: #fdfeff;
 }
 
 body[data-theme='dark'] .pin.pin--logo img {

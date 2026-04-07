@@ -142,6 +142,20 @@ function isLogoPin(item) {
   return typeof item.url === 'string' && item.url.includes('/assets/images/logo.png');
 }
 
+function timelinePins() {
+  return state.allPins.filter((item) => !isLogoPin(item));
+}
+
+function timelinePinCount() {
+  return timelinePins().length;
+}
+
+function boardVisiblePins() {
+  const nonLogoVisible = timelinePins().slice(0, state.visibleCount);
+  const logoPins = state.allPins.filter((item) => isLogoPin(item));
+  return [...nonLogoVisible, ...logoPins];
+}
+
 function setImageSourceWithFallback(img, src, alt) {
   if (!img) return;
   const nextSrc = src || IMAGE_PLACEHOLDER;
@@ -524,7 +538,7 @@ function syncPinNode(pin, item) {
 }
 
 function renderPins() {
-  const visible = state.allPins.slice(0, state.visibleCount);
+  const visible = boardVisiblePins();
   const renderOrder = [...visible].sort((a, b) => {
     const az = Number.isFinite(a.zOrder) ? a.zOrder : 0;
     const bz = Number.isFinite(b.zOrder) ? b.zOrder : 0;
@@ -555,7 +569,7 @@ function renderPins() {
 }
 
 function renderSingleView() {
-  const item = latestPinAtOrBeforeCutoff(state.allPins, state.visibleCount);
+  const item = latestPinAtOrBeforeCutoff(timelinePins(), state.visibleCount);
   if (!item) {
     singleImage.removeAttribute('src');
     singleImage.hidden = true;
@@ -638,7 +652,7 @@ function timelineClientXToVisibleCount(clientX) {
   const usableWidth = Math.max(1, rect.width - inset * 2);
   const x = Math.max(inset, Math.min(rect.width - inset, clientX - rect.left));
   const ratio = (x - inset) / usableWidth;
-  return Math.round(ratio * state.allPins.length);
+  return Math.round(ratio * timelinePinCount());
 }
 
 function updateTimelineFromPointer(clientX) {
@@ -648,7 +662,8 @@ function updateTimelineFromPointer(clientX) {
 function renderTimeline() {
   if (!timelineSlider || !timelineBlips || !timelineLabel) return;
 
-  const total = state.allPins.length;
+  const timelineItems = timelinePins();
+  const total = timelineItems.length;
   const clampedVisible = clampVisibleCount(total, state.visibleCount);
 
   timelineSlider.max = String(total);
@@ -663,7 +678,7 @@ function renderTimeline() {
   for (let i = 0; i < state.timelineBlipNodes.length; i++) {
     const node = state.timelineBlipNodes[i];
     const img = node.firstElementChild;
-    const item = state.allPins[i];
+    const item = timelineItems[i];
     const nextSrc = item?.url || IMAGE_PLACEHOLDER;
     if (img && img.getAttribute('src') !== nextSrc) {
       img.dataset.fallback = nextSrc === IMAGE_PLACEHOLDER ? '1' : '0';
@@ -875,7 +890,7 @@ function toggleMenu() {
 }
 
 function commitVisibleCount(nextCount) {
-  const clamped = clampVisibleCount(state.allPins.length, nextCount);
+  const clamped = clampVisibleCount(timelinePinCount(), nextCount);
   if (clamped === state.visibleCount) {
     renderTimeline();
     return;
@@ -906,9 +921,11 @@ function addPinIfNew(item) {
   state.knownPinIds.add(item.id);
   if (!Number.isFinite(item.zOrder)) item.zOrder = ++state.nextPinZ;
   if (state.allowPinIntroAnimation) state.newPinIds.add(item.id);
-  const wasAtLatest = state.visibleCount === state.allPins.length;
+  const previousTimelineTotal = timelinePinCount();
+  const wasAtLatest = state.visibleCount === previousTimelineTotal;
   state.allPins.push(item);
-  setVisibleCount(wasAtLatest ? state.allPins.length : state.visibleCount);
+  const nextTimelineTotal = timelinePinCount();
+  setVisibleCount(wasAtLatest ? nextTimelineTotal : state.visibleCount);
   return true;
 }
 
@@ -923,7 +940,7 @@ async function loadPins() {
   state.nextPinZ = maxZ;
   state.allPins = [...items];
   state.knownPinIds = new Set(items.map((item) => item.id));
-  setVisibleCount(state.allPins.length);
+  setVisibleCount(timelinePinCount());
 }
 
 function connectRealtime() {
@@ -1124,7 +1141,7 @@ function updateFromControl(nextCount) {
 timelineToStart?.addEventListener('click', () => updateFromControl(0));
 timelineStepBack?.addEventListener('click', () => updateFromControl(state.visibleCount - 1));
 timelineStepForward?.addEventListener('click', () => updateFromControl(state.visibleCount + 1));
-timelineToEnd?.addEventListener('click', () => updateFromControl(state.allPins.length));
+timelineToEnd?.addEventListener('click', () => updateFromControl(timelinePinCount()));
 
 modeToggle.addEventListener('click', () => {
   state.mode = state.mode === 'board' ? 'single' : 'board';
