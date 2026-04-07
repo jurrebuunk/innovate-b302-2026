@@ -763,15 +763,15 @@ body[data-theme='light'] .capture-modal__close {
 
 .capture-explanation {
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: 50%;
+  left: 50%;
   z-index: 21;
   margin: 0;
-  width: min(36vw, 360px);
+  width: min(74vw, 720px);
   aspect-ratio: 366 / 500;
   background: url('/assets/images/paper1') center / cover no-repeat;
-  transform: rotate(-3deg) translateY(-14px) scale(0.92);
-  transform-origin: top left;
+  transform: translate(220px, -54%) rotate(-3deg) scale(0.92);
+  transform-origin: center center;
   opacity: 0;
   filter: drop-shadow(0 10px 20px rgba(2, 6, 23, 0.34));
   pointer-events: none;
@@ -780,11 +780,11 @@ body[data-theme='light'] .capture-modal__close {
 
 .capture-explanation--visible {
   opacity: 1;
-  transform: rotate(-3deg) translateY(0) scale(1);
+  transform: translate(220px, -54%) rotate(-3deg) scale(1);
 }
 
 .capture-explanation__body {
-  padding: 128px 54px 74px 74px;
+  padding: 340px 112px 154px 180px;
   height: 100%;
 }
 
@@ -858,7 +858,7 @@ body[data-theme='light'] .capture-modal__close {
   border-radius: 0;
   background: #fdfeff;
   border: 2px solid var(--text);
-  transform: rotate(var(--capture-polaroid-tilt, -2deg));
+  transform: translateX(var(--capture-polaroid-shift-x, 0px)) rotate(var(--capture-polaroid-tilt, -2deg));
 }
 
 .capture-polaroid__photo {
@@ -1150,6 +1150,10 @@ body[data-capture-mode='processing'] .capture-footer {
   display: none;
 }
 
+body[data-capture-mode='processing'] .capture-polaroid__card {
+  --capture-polaroid-shift-x: -130px;
+}
+
 body[data-capture-mode='camera'] .capture-inspected {
   display: none;
 }
@@ -1173,13 +1177,18 @@ body[data-capture-mode='camera'] .capture-stage::before {
 
 @media (max-width: 720px) {
   .capture-explanation {
-    width: min(52vw, 230px);
-    top: 8px;
-    left: 8px;
+    width: min(74vw, 280px);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, 22%) rotate(-1deg) scale(0.94);
+  }
+
+  .capture-explanation--visible {
+    transform: translate(-50%, 22%) rotate(-1deg) scale(1);
   }
 
   .capture-explanation__body {
-    padding: 60px 28px 36px 34px;
+    padding: 78px 36px 42px 48px;
   }
 
   .capture-explanation__text {
@@ -1203,5 +1212,24 @@ body[data-capture-mode='camera'] .capture-stage::before {
     padding: 10px 5px;
     width: 30px;
     font-size: 10px;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 721px) {
+  .capture-explanation {
+    width: min(64vw, 560px);
+    transform: translate(140px, -54%) rotate(-2.5deg) scale(0.92);
+  }
+
+  .capture-explanation--visible {
+    transform: translate(140px, -54%) rotate(-2.5deg) scale(1);
+  }
+
+  .capture-explanation__body {
+    padding: 220px 90px 108px 128px;
+  }
+
+  body[data-capture-mode='processing'] .capture-polaroid__card {
+    --capture-polaroid-shift-x: -70px;
   }
 }
