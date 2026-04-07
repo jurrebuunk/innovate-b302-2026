@@ -400,6 +400,25 @@ button:hover { background: var(--brand-blue); }
   position: relative;
 }
 
+.pin.pin--logo {
+  width: clamp(260px, 50vw, 420px);
+  padding: 18px;
+}
+
+.pin.pin--logo::before {
+  display: none;
+}
+
+.pin.pin--logo img {
+  aspect-ratio: auto;
+  object-fit: contain;
+  background: transparent;
+}
+
+body[data-theme='dark'] .pin.pin--logo img {
+  background: var(--brand-black);
+}
+
 .pin::before {
   content: '';
   position: absolute;

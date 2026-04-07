@@ -136,6 +136,12 @@ function applyPinTransform(pin, sway = 0) {
   pin.style.transform = `rotate(${baseRotation + sway}deg) scale(${baseScale})`;
 }
 
+function isLogoPin(item) {
+  if (!item) return false;
+  if (item.id === 'board-logo-20260407') return true;
+  return typeof item.url === 'string' && item.url.includes('/assets/images/logo.png');
+}
+
 function setImageSourceWithFallback(img, src, alt) {
   if (!img) return;
   const nextSrc = src || IMAGE_PLACEHOLDER;
@@ -266,6 +272,7 @@ function schedulePinPositionPersist(id, x, y, zOrder) {
 function createPinNode(item) {
   const pin = document.createElement('div');
   pin.className = 'pin';
+  if (isLogoPin(item)) pin.classList.add('pin--logo');
   pin.dataset.pinId = item.id;
   if (!Number.isFinite(item.zOrder)) item.zOrder = ++state.nextPinZ;
   pin.style.zIndex = String(item.zOrder);
@@ -448,6 +455,7 @@ function createPinNode(item) {
 }
 
 function syncPinNode(pin, item) {
+  pin.classList.toggle('pin--logo', isLogoPin(item));
   pin.style.left = `${item.x}px`;
   pin.style.top = `${item.y}px`;
   if (!Number.isFinite(item.zOrder)) item.zOrder = ++state.nextPinZ;

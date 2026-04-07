@@ -46,7 +46,7 @@ const persistentLogoPin = {
   x: -120,
   y: -90,
   rotation: -1.2,
-  scale: 2.8,
+  scale: 2.25,
   createdAt: '2026-04-07T12:00:00.000Z',
   prompt: 'B302 logo centerpiece',
   zOrder: 120
