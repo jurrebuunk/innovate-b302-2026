@@ -84,6 +84,24 @@ const state = {
   syncTimer: null
 };
 
+const PERSISTENT_LOGO_PIN = {
+  id: 'board-logo-20260407',
+  url: '/assets/images/logo.png',
+  x: -120,
+  y: -90,
+  rotation: -1.2,
+  scale: 2.25,
+  createdAt: '2026-04-07T12:00:00.000Z',
+  prompt: 'B302 logo centerpiece',
+  zOrder: 120
+};
+
+function withPersistentLogoPin(items) {
+  const list = Array.isArray(items) ? items : [];
+  if (list.some((item) => item?.id === PERSISTENT_LOGO_PIN.id)) return list;
+  return [...list, { ...PERSISTENT_LOGO_PIN }];
+}
+
 function clampVisibleCount(totalPins, nextCount) {
   if (historyUtils.clampVisibleCount) return historyUtils.clampVisibleCount(totalPins, nextCount);
   return Math.max(0, Math.min(totalPins, nextCount));
@@ -194,12 +212,13 @@ function getLocalPinById(id) {
 
 function mergePinsFromServer(items) {
   if (!Array.isArray(items)) return;
+  const incomingItems = withPersistentLogoPin(items);
 
   let changed = false;
   let maxZ = state.nextPinZ;
 
-  for (let i = 0; i < items.length; i++) {
-    const incoming = items[i];
+  for (let i = 0; i < incomingItems.length; i++) {
+    const incoming = incomingItems[i];
     if (!incoming?.id) continue;
     if (!Number.isFinite(incoming.zOrder)) incoming.zOrder = i + 1;
     if (incoming.zOrder > maxZ) maxZ = incoming.zOrder;
@@ -931,7 +950,7 @@ function addPinIfNew(item) {
 
 async function loadPins() {
   const res = await fetch('/api/images');
-  const items = await res.json();
+  const items = withPersistentLogoPin(await res.json());
   let maxZ = state.nextPinZ;
   for (let i = 0; i < items.length; i++) {
     if (!Number.isFinite(items[i].zOrder)) items[i].zOrder = i + 1;
