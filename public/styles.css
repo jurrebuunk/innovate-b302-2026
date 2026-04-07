@@ -767,7 +767,7 @@ body[data-theme='light'] .capture-modal__close {
   left: 50%;
   z-index: 21;
   margin: 0;
-  width: min(42vw, 410px);
+  width: min(56.7vw, 554px);
   aspect-ratio: 366 / 500;
   background: url('/assets/images/paper1') center / cover no-repeat;
   transform: translate(172px, -54%) rotate(-3deg) scale(0.92);
@@ -784,7 +784,7 @@ body[data-theme='light'] .capture-modal__close {
 }
 
 .capture-explanation__body {
-  padding: 168px 58px 82px 84px;
+  padding: 234px 84px 120px 118px;
   height: 100%;
 }
 
@@ -1218,7 +1218,7 @@ body[data-capture-mode='camera'] .capture-stage::before {
 
 @media (max-width: 1180px) and (min-width: 721px) {
   .capture-explanation {
-    width: min(48vw, 460px);
+    width: min(64.8vw, 621px);
     transform: translate(128px, -54%) rotate(-2.5deg) scale(0.92);
   }
 
@@ -1227,7 +1227,7 @@ body[data-capture-mode='camera'] .capture-stage::before {
   }
 
   .capture-explanation__body {
-    padding: 198px 72px 96px 102px;
+    padding: 264px 98px 126px 142px;
   }
 
   body[data-capture-mode='processing'][data-explanation-visible='1'] .capture-polaroid__card {

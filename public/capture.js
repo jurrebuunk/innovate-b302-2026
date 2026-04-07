@@ -217,6 +217,9 @@ function flattenPrimitiveStrings(value) {
 
 function colorKeywordsFromContent(rawContent) {
   const content = normalizeInspectedContent(rawContent);
+  if (typeof content === 'string') {
+    return colorKeywordsFromText(content);
+  }
   if (!content || typeof content !== 'object' || Array.isArray(content)) return [];
 
   const candidates = [];
@@ -232,6 +235,20 @@ function colorKeywordsFromContent(rawContent) {
     })
     .filter((value) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(value) || /^[a-z]+$/.test(value));
 
+  const fallbackTexts = [
+    content.colors,
+    content.colours,
+    content.color,
+    content.colour,
+    content.palette,
+    content.summary,
+    content.description
+  ].flatMap((value) => flattenPrimitiveStrings(value));
+
+  for (const text of fallbackTexts) {
+    collected.push(...colorKeywordsFromText(text));
+  }
+
   const seen = new Set();
   const unique = [];
   for (const name of collected) {
@@ -240,6 +257,33 @@ function colorKeywordsFromContent(rawContent) {
     unique.push(name);
   }
   return unique;
+}
+
+function colorKeywordsFromText(text) {
+  if (typeof text !== 'string') return [];
+  const names = [];
+
+  const namedRegex = /colou?r_name\s*:\s*([^,|]+)/gi;
+  let match = namedRegex.exec(text);
+  while (match) {
+    const raw = (match[1] || '').trim().toLowerCase().replace(/[\s-]+/g, '');
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(raw) || /^[a-z]+$/.test(raw)) {
+      names.push(raw);
+    }
+    match = namedRegex.exec(text);
+  }
+
+  const directRegex = /colou?r\s*:\s*([^,|]+)/gi;
+  match = directRegex.exec(text);
+  while (match) {
+    const raw = (match[1] || '').trim().toLowerCase().replace(/[\s-]+/g, '');
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(raw) || /^[a-z]+$/.test(raw)) {
+      names.push(raw);
+    }
+    match = directRegex.exec(text);
+  }
+
+  return names;
 }
 
 function latestColorsFromUpdates(updates) {
