@@ -8,8 +8,9 @@ const captureLoadingVideo = document.getElementById('captureLoadingVideo');
 const captureResultImage = document.getElementById('captureResultImage');
 const captureBackButton = document.getElementById('captureBackButton');
 const captureLogo = document.getElementById('captureLogo');
-const captureDebug = document.getElementById('captureDebug');
 const capturePolaroidGlow = document.getElementById('capturePolaroidGlow');
+const captureExplanationNote = document.getElementById('captureExplanationNote');
+const captureExplanationText = document.getElementById('captureExplanationText');
 const captureInspectedSidebar = document.getElementById('captureInspectedSidebar');
 const captureInspectedToggle = document.getElementById('captureInspectedToggle');
 const captureInspectedToggleLabel = document.getElementById('captureInspectedToggleLabel');
@@ -265,6 +266,37 @@ function applyPolaroidGlow(colors) {
   }, 80);
 }
 
+function explanationFromUpdate(updatePayload) {
+  const candidates = [
+    updatePayload?.data?.payload?.explenation,
+    updatePayload?.data?.payload?.explanation,
+    updatePayload?.payload?.explenation,
+    updatePayload?.payload?.explanation,
+    updatePayload?.data?.explenation,
+    updatePayload?.data?.explanation,
+    updatePayload?.explenation,
+    updatePayload?.explanation
+  ];
+
+  for (const value of candidates) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
+function showExplanationNote(text) {
+  if (!captureExplanationNote || !captureExplanationText || !text) return;
+  captureExplanationText.textContent = text;
+  captureExplanationNote.classList.remove('capture-explanation--visible');
+  captureExplanationNote.hidden = false;
+  void captureExplanationNote.offsetWidth;
+  requestAnimationFrame(() => {
+    captureExplanationNote?.classList.add('capture-explanation--visible');
+  });
+}
+
 function formatInspectedValue(value) {
   if (value === null) return 'null';
   if (value === undefined) return 'undefined';
@@ -355,6 +387,7 @@ function applyWorkflowUpdate(updatePayload) {
   const imageUrl = imageUrlFromUpdate(updatePayload);
   const content = contentFromUpdate(updatePayload);
   const colors = colorKeywordsFromContent(content);
+  const explanation = explanationFromUpdate(updatePayload);
   if (imageUrl && key === 'generation_completed') {
     showGeneratedImage(imageUrl);
   }
@@ -365,16 +398,7 @@ function applyWorkflowUpdate(updatePayload) {
     persistedGlowColors = colors;
     applyPolaroidGlow(persistedGlowColors);
   }
-
-  if (captureDebug) {
-    const rawPayload = updatePayload?.data?.payload ?? updatePayload?.payload ?? updatePayload;
-    try {
-      captureDebug.textContent = JSON.stringify(rawPayload, null, 2);
-    } catch {
-      captureDebug.textContent = String(rawPayload);
-    }
-    captureDebug.hidden = false;
-  }
+  if (explanation) showExplanationNote(explanation);
 }
 
 function connectWorkflowUpdates() {
@@ -493,14 +517,10 @@ if (captureId) {
   if (captureLogo) captureLogo.hidden = false;
   if (shutterButton) shutterButton.hidden = true;
   setStatus('Waiting for workflow update...');
-  if (captureDebug) {
-    captureDebug.hidden = false;
-    captureDebug.textContent = `waiting for updates for job_id: ${captureId}`;
-  }
   connectWorkflowUpdates();
 } else {
   setCaptureMode('camera');
   if (captureLogo) captureLogo.hidden = true;
-  if (captureDebug) captureDebug.hidden = true;
+  if (captureExplanationNote) captureExplanationNote.hidden = true;
   startCamera();
 }

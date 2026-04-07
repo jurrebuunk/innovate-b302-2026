@@ -7,7 +7,11 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body class="capture-page" data-embedded="0">
-  <pre id="captureDebug" class="capture-debug" hidden></pre>
+  <aside id="captureExplanationNote" class="capture-explanation" hidden aria-live="polite">
+    <div class="capture-explanation__body">
+      <p id="captureExplanationText" class="capture-explanation__text"></p>
+    </div>
+  </aside>
   <main class="capture-stage" aria-label="Webcam preview">
     <video id="captureVideo" autoplay playsinline muted></video>
     <div class="capture-overlay" aria-hidden="true"></div>
