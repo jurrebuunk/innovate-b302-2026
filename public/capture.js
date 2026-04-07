@@ -225,8 +225,12 @@ function colorKeywordsFromContent(rawContent) {
 
   const collected = candidates
     .flatMap((value) => flattenPrimitiveStrings(value))
-    .map((value) => value.toLowerCase())
-    .filter((value) => /^[a-z]+$/.test(value));
+    .map((value) => value.toLowerCase().trim())
+    .map((value) => {
+      if (value.startsWith('#')) return value;
+      return value.replace(/[\s-]+/g, '');
+    })
+    .filter((value) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(value) || /^[a-z]+$/.test(value));
 
   const seen = new Set();
   const unique = [];
@@ -238,6 +242,16 @@ function colorKeywordsFromContent(rawContent) {
   return unique;
 }
 
+function latestColorsFromUpdates(updates) {
+  if (!Array.isArray(updates)) return [];
+  for (let i = updates.length - 1; i >= 0; i--) {
+    const rawContent = contentFromUpdate(updates[i]);
+    const colors = colorKeywordsFromContent(rawContent);
+    if (colors.length) return colors;
+  }
+  return [];
+}
+
 function applyPolaroidGlow(colors) {
   if (!capturePolaroidGlow) return;
   if (!Array.isArray(colors) || !colors.length) {
@@ -247,16 +261,20 @@ function applyPolaroidGlow(colors) {
     return;
   }
 
-  const palette = colors.slice(0, 6);
+  const palette = colors.slice(0, 12);
   const total = palette.length;
-  const layers = palette.map((color, index) => {
-    const angle = (index / total) * Math.PI * 2;
-    const x = Math.round(50 + (Math.cos(angle) * 26));
-    const y = Math.round(50 + (Math.sin(angle) * 22));
-    return `radial-gradient(circle at ${x}% ${y}%, ${color} 0%, ${color} 8%, transparent 100%)`;
+  const conicStops = palette.map((color, index) => {
+    const start = Math.round((index / total) * 360);
+    const end = Math.round(((index + 1) / total) * 360);
+    return `${color} ${start}deg ${end}deg`;
   });
 
-  layers.push('radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.1) 0%, transparent 100%)');
+  const layers = [
+    `conic-gradient(from 0deg at 50% 52%, ${conicStops.join(', ')})`,
+    'radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.16) 0%, transparent 72%)',
+    'radial-gradient(circle at 50% 52%, rgba(15, 23, 42, 0) 32%, rgba(15, 23, 42, 0.32) 100%)'
+  ];
+
   capturePolaroidGlow.style.setProperty('--capture-glow-layers', layers.join(', '));
   capturePolaroidGlow.classList.remove('capture-polaroid__glow--visible');
   capturePolaroidGlow.hidden = false;
@@ -286,11 +304,25 @@ function explanationFromUpdate(updatePayload) {
   return null;
 }
 
+function latestExplanationFromUpdates(updates) {
+  if (!Array.isArray(updates)) return null;
+  for (let i = updates.length - 1; i >= 0; i--) {
+    const explanation = explanationFromUpdate(updates[i]);
+    if (explanation) return explanation;
+  }
+  return null;
+}
+
+function setExplanationVisible(visible) {
+  document.body.dataset.explanationVisible = visible ? '1' : '0';
+}
+
 function showExplanationNote(text) {
   if (!captureExplanationNote || !captureExplanationText || !text) return;
   captureExplanationText.textContent = text;
   captureExplanationNote.classList.remove('capture-explanation--visible');
   captureExplanationNote.hidden = false;
+  setExplanationVisible(true);
   void captureExplanationNote.offsetWidth;
   requestAnimationFrame(() => {
     captureExplanationNote?.classList.add('capture-explanation--visible');
@@ -386,8 +418,14 @@ function applyWorkflowUpdate(updatePayload) {
   const key = typeof status === 'string' ? status.trim().toLowerCase().replace(/[\s-]+/g, '_') : '';
   const imageUrl = imageUrlFromUpdate(updatePayload);
   const content = contentFromUpdate(updatePayload);
-  const colors = colorKeywordsFromContent(content);
-  const explanation = explanationFromUpdate(updatePayload);
+  let colors = colorKeywordsFromContent(content);
+  if (!colors.length) {
+    colors = latestColorsFromUpdates(updatePayload?.updates);
+  }
+  let explanation = explanationFromUpdate(updatePayload);
+  if (!explanation) {
+    explanation = latestExplanationFromUpdates(updatePayload?.updates);
+  }
   if (imageUrl && key === 'generation_completed') {
     showGeneratedImage(imageUrl);
   }
@@ -396,6 +434,8 @@ function applyWorkflowUpdate(updatePayload) {
   }
   if (colors.length) {
     persistedGlowColors = colors;
+    applyPolaroidGlow(persistedGlowColors);
+  } else if (persistedGlowColors.length) {
     applyPolaroidGlow(persistedGlowColors);
   }
   if (explanation) showExplanationNote(explanation);
@@ -511,6 +551,7 @@ window.addEventListener('storage', (event) => {
 applyTheme();
 if (captureId) {
   setCaptureMode('processing');
+  setExplanationVisible(false);
   showProcessingPolaroid();
   if (captureInspectedSidebar) captureInspectedSidebar.hidden = false;
   setInspectedSidebarCollapsed(true);
@@ -520,6 +561,7 @@ if (captureId) {
   connectWorkflowUpdates();
 } else {
   setCaptureMode('camera');
+  setExplanationVisible(false);
   if (captureLogo) captureLogo.hidden = true;
   if (captureExplanationNote) captureExplanationNote.hidden = true;
   startCamera();

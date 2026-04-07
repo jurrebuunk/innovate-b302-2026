@@ -767,10 +767,10 @@ body[data-theme='light'] .capture-modal__close {
   left: 50%;
   z-index: 21;
   margin: 0;
-  width: min(74vw, 720px);
+  width: min(38vw, 360px);
   aspect-ratio: 366 / 500;
   background: url('/assets/images/paper1') center / cover no-repeat;
-  transform: translate(220px, -54%) rotate(-3deg) scale(0.92);
+  transform: translate(172px, -54%) rotate(-3deg) scale(0.92);
   transform-origin: center center;
   opacity: 0;
   filter: drop-shadow(0 10px 20px rgba(2, 6, 23, 0.34));
@@ -780,11 +780,11 @@ body[data-theme='light'] .capture-modal__close {
 
 .capture-explanation--visible {
   opacity: 1;
-  transform: translate(220px, -54%) rotate(-3deg) scale(1);
+  transform: translate(172px, -54%) rotate(-3deg) scale(1);
 }
 
 .capture-explanation__body {
-  padding: 340px 112px 154px 180px;
+  padding: 168px 58px 82px 84px;
   height: 100%;
 }
 
@@ -838,14 +838,14 @@ body[data-theme='light'] .capture-modal__close {
   transform: translate(-50%, -52%) scale(0.97);
   border-radius: 999px;
   background: var(--capture-glow-layers, radial-gradient(circle at 50% 52%, rgba(15, 23, 42, 0.55) 0%, transparent 70%));
-  filter: blur(84px) saturate(145%);
+  filter: blur(78px) saturate(165%);
   opacity: 0;
   pointer-events: none;
   transition: opacity 1800ms ease-out, transform 2200ms ease-out;
 }
 
 .capture-polaroid__glow--visible {
-  opacity: 0.72;
+  opacity: 0.88;
   transform: translate(-50%, -52%) scale(1);
 }
 
@@ -1150,7 +1150,7 @@ body[data-capture-mode='processing'] .capture-footer {
   display: none;
 }
 
-body[data-capture-mode='processing'] .capture-polaroid__card {
+body[data-capture-mode='processing'][data-explanation-visible='1'] .capture-polaroid__card {
   --capture-polaroid-shift-x: -130px;
 }
 
@@ -1217,19 +1217,19 @@ body[data-capture-mode='camera'] .capture-stage::before {
 
 @media (max-width: 1180px) and (min-width: 721px) {
   .capture-explanation {
-    width: min(64vw, 560px);
-    transform: translate(140px, -54%) rotate(-2.5deg) scale(0.92);
+    width: min(44vw, 420px);
+    transform: translate(128px, -54%) rotate(-2.5deg) scale(0.92);
   }
 
   .capture-explanation--visible {
-    transform: translate(140px, -54%) rotate(-2.5deg) scale(1);
+    transform: translate(128px, -54%) rotate(-2.5deg) scale(1);
   }
 
   .capture-explanation__body {
-    padding: 220px 90px 108px 128px;
+    padding: 198px 72px 96px 102px;
   }
 
-  body[data-capture-mode='processing'] .capture-polaroid__card {
+  body[data-capture-mode='processing'][data-explanation-visible='1'] .capture-polaroid__card {
     --capture-polaroid-shift-x: -70px;
   }
 }
