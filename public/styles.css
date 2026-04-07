@@ -26,10 +26,10 @@
   --fab-bg: rgba(37, 35, 39, 0.95);
   --fab-border: #555058;
   --timeline-height: 146px;
-  --cursor-default: url('/assets/images/cursor.png') 6 2, auto;
-  --cursor-pointer: url('/assets/images/cursor.png') 6 2, pointer;
-  --cursor-grab: url('/assets/images/cursor.png') 6 2, grab;
-  --cursor-grabbing: url('/assets/images/cursor.png') 6 2, grabbing;
+  --cursor-default: url('/assets/images/cursor-64.png') 8 8, auto;
+  --cursor-pointer: url('/assets/images/cursor-64.png') 8 8, pointer;
+  --cursor-grab: url('/assets/images/cursor-64.png') 8 8, grab;
+  --cursor-grabbing: url('/assets/images/cursor-64.png') 8 8, grabbing;
 }
 
 html,
