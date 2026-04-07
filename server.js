@@ -339,7 +339,19 @@ function persistImagePosition(id, x, y, zOrder = null) {
   return enqueuePersist(async () => {
     const items = loadBoard();
     const index = items.findIndex((item) => item.id === id);
-    if (index === -1) return null;
+    if (index === -1) {
+      if (id !== persistentLogoPin.id) return null;
+      const createdLogo = {
+        ...persistentLogoPin,
+        x,
+        y,
+        ...(Number.isFinite(zOrder) ? { zOrder } : {})
+      };
+      items.push(createdLogo);
+      saveBoard(items);
+      broadcast('pin-updated', createdLogo);
+      return createdLogo;
+    }
 
     const patch = { x, y };
     if (Number.isFinite(zOrder)) patch.zOrder = zOrder;

@@ -402,14 +402,16 @@ button:hover { background: var(--brand-blue); }
 
 .pin.pin--logo {
   width: clamp(260px, 50vw, 420px);
-  padding: 18px;
+  padding: 10px 10px 28px;
 }
 
 .pin.pin--logo::before {
-  display: none;
+  display: block;
 }
 
 .pin.pin--logo img {
+  width: calc(100% - 40px);
+  margin: 20px auto 0;
   aspect-ratio: auto;
   object-fit: contain;
   background: transparent;
