@@ -40,6 +40,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 const boardFile = path.join(__dirname, 'board.json');
 const captureFlowsFile = path.join(__dirname, 'capture-flows.json');
 const webcamWebhookUrl = process.env.WEBHOOK_URL || 'http://n8n.lan.buunk.org:5678/webhook/7c817235-db8e-49e8-b985-887fadce5c3f';
+const persistentLogoPin = {
+  id: 'board-logo-20260407',
+  url: '/assets/images/logo.png',
+  x: -120,
+  y: -90,
+  rotation: -1.2,
+  scale: 2.8,
+  createdAt: '2026-04-07T12:00:00.000Z',
+  prompt: 'B302 logo centerpiece',
+  zOrder: 120
+};
+
+function withPersistentPins(items) {
+  const list = Array.isArray(items) ? items : [];
+  const hasLogo = list.some((item) => item?.id === persistentLogoPin.id);
+  if (hasLogo) return list;
+  return [...list, { ...persistentLogoPin }];
+}
 
 function loadBoard() {
   if (!fs.existsSync(boardFile)) return [];
@@ -333,7 +351,7 @@ function persistImagePosition(id, x, y, zOrder = null) {
 }
 
 app.get('/api/images', (_req, res) => {
-  res.json(loadBoard());
+  res.json(withPersistentPins(loadBoard()));
 });
 
 app.get('/api/stream', (req, res) => {
