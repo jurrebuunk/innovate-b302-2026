@@ -402,7 +402,8 @@ button:hover { background: var(--brand-blue); }
 
 .pin.pin--logo {
   width: clamp(220px, 40vw, 340px);
-  padding: 10px 10px 28px;
+  padding: 20px;
+  border: 0.5px solid #fff;
 }
 
 .pin.pin--logo::before {
@@ -410,8 +411,8 @@ button:hover { background: var(--brand-blue); }
 }
 
 .pin.pin--logo img {
-  width: calc(100% - 40px);
-  margin: 20px auto 0;
+  width: 100%;
+  margin: 0;
   aspect-ratio: auto;
   object-fit: contain;
   background: #fdfeff;
