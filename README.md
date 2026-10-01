@@ -1,61 +1,107 @@
-# Giant Pinboard
+# B302 Innovate 2026 Pinboard
 
-A web app that behaves like a giant infinite pinboard.
+An interactive image wall for the B302 Innovate 2026 experience. Visitors can take a webcam photo, send it through the connected n8n/AI workflow, and see the generated result appear on a shared, zoomable pinboard.
 
-## Features
-- Pin images from external URLs via API endpoint (`POST /api/images`)
-- Images are pinned at random coordinates on a large world
-- Pan by dragging, zoom in/out with mouse wheel (Google Maps-style feel)
-- Existing pins load from API (`GET /api/images`)
+![B302 Innovate 2026 pinboard screenshot](docs/media/screenshot.png)
 
-## Run
+**Demo:** [watch the short screen recording](docs/media/demo.mp4)
+
+<video src="docs/media/demo.mp4" controls muted width="100%"></video>
+
+## What it does
+
+- Lets visitors capture a photo from the browser at `/capture`.
+- Forwards captured images to an n8n webhook for processing.
+- Shows a “developing” placeholder while the workflow runs.
+- Pins finished images to a large draggable, zoomable board.
+- Keeps the B302 logo visible as a centerpiece on the board.
+- Supports a timeline so the team can scrub through the order images arrived.
+- Includes board mode, single-image mode, dark/light themes, image preview modals, and live updates via server-sent events.
+
+## Who it is for
+
+- **Visitors:** take a photo and watch the AI-generated result appear on the wall.
+- **Event team:** run the installation on a local network, connect it to the n8n workflow, and monitor new images in real time.
+- **Developers:** adapt the Express API, static frontend, and workflow callbacks for future B302 demos.
+
+## Getting started
+
 ```bash
 npm install
+cp .env.example .env
 npm start
 ```
-The server binds to `0.0.0.0` by default, so it is reachable from your LAN.
-Open `http://localhost:3000` locally, or `http://<your-machine-ip>:3000` from another device on the same network.
 
-## API
+Open the app locally:
+
+- Pinboard: `http://localhost:3000`
+- Camera capture: `http://localhost:3000/capture`
+
+The server binds to `0.0.0.0` by default, so devices on the same LAN can open `http://<your-machine-ip>:3000`.
+
+## Configuration
+
+Environment variables are loaded from `.env`:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `PORT` | Web server port | `3000` |
+| `HOST` | Bind address | `0.0.0.0` |
+| `WEBHOOK_URL` | n8n webhook that receives webcam captures | value in `.env.example` |
+| `APP_URL` / `PINBOARD_APP_URL` | Public/LAN URL passed to the workflow metadata | unset |
+
+## API overview
+
 ### `GET /api/images`
-Returns all pinned images, including each stored `prompt` when present.
 
-### `POST /api/images`
-`application/json` with fields: `imageUrl`, optional `prompt`
+Returns all current board pins, including the persistent B302 logo pin.
 
-`imageUrl` must be an absolute `http://` or `https://` URL pointing to an externally hosted image.
+### `POST /api/webcam-trigger`
 
-`prompt` can be plain text or JSON text. If it starts with `{` or `[`, the server attempts to parse and store it as JSON.
+Receives a browser capture and forwards it to n8n.
 
-Example:
-```bash
-curl -X POST http://localhost:3000/api/images \
-  -H 'Content-Type: application/json' \
-  -d '{"imageUrl":"https://example.com/image.jpg","prompt":"a clean product composition"}'
-```
-
-Structured prompt example:
-```bash
-curl -X POST http://localhost:3000/api/images \
-  -H 'Content-Type: application/json' \
-  -d '{"imageUrl":"https://example.com/image.jpg","prompt":{"mood":"calm","style":"minimal"}}'
-```
-
-Response example:
 ```json
 {
-  "id": "1710000000000-12345",
-  "url": "https://example.com/image.jpg",
-  "x": 1342,
-  "y": -823,
-  "createdAt": "2026-03-13T15:00:00.000Z",
-  "prompt": {
-    "mood": "calm",
-    "style": "minimal"
-  }
+  "imageDataUrl": "data:image/png;base64,...",
+  "job_id": "optional-stable-job-id"
 }
 ```
 
+### `POST /api/n8n-updates`
+
+Receives workflow progress for a `job_id`. When the workflow reports it has started, the board shows a temporary generating pin.
+
+### `POST /api/images`
+
+Updates an existing generated pin when the workflow returns a final image URL.
+
+```json
+{
+  "id": "job-123",
+  "imageUrl": "https://example.com/final-image.png",
+  "prompt": "optional prompt or metadata"
+}
+```
+
+### `PATCH /api/images/:id/position`
+
+Persists a dragged pin position and optional `zOrder`.
+
 ### `GET /api/images/latest`
-Redirects to the latest stored image URL by default.
-Add `?metadata=1` to return the stored JSON record, including `prompt` and `url`.
+
+Redirects to the latest image. Add `?metadata=1` to receive the JSON record instead.
+
+## Development
+
+```bash
+npm test
+npm run dev
+```
+
+Main files:
+
+- `server.js` — Express server, persistence, API, SSE updates.
+- `public/app.js` — interactive pinboard and timeline.
+- `public/capture.js` — webcam capture flow.
+- `board.json` — local board state.
+- `capture-flows.json` — local workflow update history.
