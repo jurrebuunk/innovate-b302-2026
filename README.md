@@ -4,9 +4,8 @@ An interactive image wall for the B302 Innovate 2026 experience. Visitors can ta
 
 ![B302 Innovate 2026 pinboard screenshot](docs/media/screenshot.png)
 
-**Demo:** [watch the short screen recording](docs/media/demo.mp4)
+https://github.com/user-attachments/assets/3f6f3935-9257-4ca0-bce7-fa495c48c05f
 
-<video src="docs/media/demo.mp4" controls muted width="100%"></video>
 
 ## What it does
 
